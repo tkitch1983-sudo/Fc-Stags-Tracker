@@ -23,8 +23,8 @@ function twoDaysFromNowStr() {
   return d.toISOString().slice(0, 10);
 }
 
-function isFriday(dateStr) {
-  return new Date(dateStr + 'T12:00:00').getDay() === 5;
+function isTrainingDay(dateStr, dayOfWeek) {
+  return new Date(dateStr + 'T12:00:00').getDay() === dayOfWeek;
 }
 
 export default async (req) => {
@@ -39,10 +39,13 @@ export default async (req) => {
     return new Response('Could not load shared data: ' + e.message, { status: 500 });
   }
 
-  // Fixtures now live in shared storage (added via the app's Fixtures tab),
-  // so this always matches whatever's currently in the app — no separate
-  // list to keep in sync here.
+  // Fixtures, training settings, one-off extra sessions, and cancelled dates
+  // all live in shared storage (managed from the app itself), so this always
+  // matches whatever's currently in the app — no separate copy to keep in sync.
   const fixtures = Array.isArray(record.fixtures) ? record.fixtures : [];
+  const trainingSettings = record.trainingSettings || { dayOfWeek: 5, time: '16:00-17:00', venue: 'Grayfields Recreation Ground (3G)' };
+  const extraTraining = Array.isArray(record.extraTraining) ? record.extraTraining : [];
+  const cancelledTrainingDates = Array.isArray(record.cancelledTrainingDates) ? record.cancelledTrainingDates : [];
   const sessions = [];
 
   const fixture = fixtures.find(f => f.date === targetDate);
@@ -53,11 +56,21 @@ export default async (req) => {
       body: `${targetDate}${fixture.time ? ', ' + fixture.time : ''} — ${fixture.venue || ''}`
     });
   }
-  if (isFriday(targetDate)) {
+
+  if (isTrainingDay(targetDate, trainingSettings.dayOfWeek != null ? trainingSettings.dayOfWeek : 5) && !cancelledTrainingDates.includes(targetDate)) {
     sessions.push({
       id: 'training-' + targetDate,
       title: 'Training in 2 days',
-      body: `${targetDate}, 4-5pm — Grayfields Recreation Ground (3G)`
+      body: `${targetDate}, ${trainingSettings.time || ''} — ${trainingSettings.venue || ''}`
+    });
+  }
+
+  const extra = extraTraining.find(t => t.date === targetDate);
+  if (extra) {
+    sessions.push({
+      id: extra.id,
+      title: 'Extra training session in 2 days',
+      body: `${targetDate}${extra.time ? ', ' + extra.time : ''} — ${extra.venue || ''}`
     });
   }
 

@@ -302,6 +302,50 @@
 <div id="fixturesPane" style="display:none;"></div>
 <div id="trainingPane" style="display:none;"></div>
 
+<div id="addTrainingPane" style="display:none;">
+  <div class="add-form">
+    <div class="sub" style="margin-bottom:12px;">Add a one-off extra training session (holiday camps, extra pre-match sessions, etc). This is separate from the regular weekly session.</div>
+    <label>Date</label>
+    <div class="row"><input id="trainingDateInput" type="date"></div>
+
+    <label>Time</label>
+    <div class="row"><input id="trainingTimeInput" type="text" placeholder="e.g. 16:00-17:00"></div>
+
+    <label>Venue</label>
+    <div class="row"><input id="trainingVenueInput" type="text" placeholder="e.g. Grayfields Recreation Ground (3G)"></div>
+
+    <button id="saveTrainingBtn">Save Session</button>
+    <div class="error" id="trainingErr"></div>
+  </div>
+</div>
+
+<div id="trainingSettingsPane" style="display:none;">
+  <div class="add-form">
+    <div class="sub" style="margin-bottom:12px;">This controls the regular weekly training session that repeats automatically.</div>
+    <label>Day of the week</label>
+    <div class="row">
+      <select id="trainingDayInput" style="width:100%;background:#0f1720;border:1px solid var(--border);border-radius:8px;padding:12px 10px;color:var(--text);font-size:16px;">
+        <option value="1">Monday</option>
+        <option value="2">Tuesday</option>
+        <option value="3">Wednesday</option>
+        <option value="4">Thursday</option>
+        <option value="5">Friday</option>
+        <option value="6">Saturday</option>
+        <option value="0">Sunday</option>
+      </select>
+    </div>
+
+    <label>Time</label>
+    <div class="row"><input id="trainingSettingsTimeInput" type="text" placeholder="e.g. 16:00-17:00"></div>
+
+    <label>Venue</label>
+    <div class="row"><input id="trainingSettingsVenueInput" type="text" placeholder="e.g. Grayfields Recreation Ground (3G)"></div>
+
+    <button id="saveTrainingSettingsBtn">Save Settings</button>
+    <div class="error" id="trainingSettingsErr"></div>
+  </div>
+</div>
+
 <div id="addFixturePane" style="display:none;">
   <div class="add-form">
     <label>Opponent</label>
@@ -433,6 +477,9 @@ let events = [];
 let attendance = {};
 let fixtures = [];
 let squad = [];
+let extraTraining = [];
+let cancelledTrainingDates = [];
+let trainingSettings = { dayOfWeek: 5, time: '16:00-17:00', venue: 'Grayfields Recreation Ground (3G)' };
 let games = [];
 let saving = false;
 
@@ -633,44 +680,126 @@ function wireAttendanceButtons(container) {
 }
 
 // ---- Training sessions (auto-generated every Friday) ----
-const TRAINING_VENUE = 'Grayfields Recreation Ground (3G)';
-const TRAINING_TIME = '16:00-17:00';
 function generateTrainingSessions(weeksAhead) {
   const sessions = [];
   const now = new Date();
-  const day = now.getDay(); // 0=Sun..6=Sat, Friday=5
-  let daysUntilFriday = (5 - day + 7) % 7;
+  const day = now.getDay(); // 0=Sun..6=Sat
+  const targetDay = trainingSettings.dayOfWeek != null ? trainingSettings.dayOfWeek : 5;
+  let daysUntil = (targetDay - day + 7) % 7;
   const first = new Date(now);
-  first.setDate(now.getDate() + daysUntilFriday);
+  first.setDate(now.getDate() + daysUntil);
   for (let i = 0; i < weeksAhead; i++) {
     const d = new Date(first);
     d.setDate(first.getDate() + i * 7);
     const dateStr = d.toISOString().slice(0, 10);
-    sessions.push({ id: 'training-' + dateStr, date: dateStr, time: TRAINING_TIME, venue: TRAINING_VENUE });
+    if (cancelledTrainingDates.includes(dateStr)) continue;
+    sessions.push({
+      id: 'training-' + dateStr,
+      date: dateStr,
+      time: trainingSettings.time,
+      venue: trainingSettings.venue,
+      recurring: true
+    });
   }
   return sessions;
 }
 
+let editingTrainingId = null;
+
+function clearTrainingForm() {
+  document.getElementById('trainingDateInput').value = '';
+  document.getElementById('trainingTimeInput').value = '';
+  document.getElementById('trainingVenueInput').value = '';
+  document.getElementById('trainingErr').textContent = '';
+}
+
 function renderTraining() {
   const el = document.getElementById('trainingPane');
-  const sessions = generateTrainingSessions(12);
+  const recurring = generateTrainingSessions(12);
+  const extras = extraTraining.map(t => ({ ...t, recurring: false }));
+  const all = [...recurring, ...extras].sort((a, b) => a.date.localeCompare(b.date));
   const today = todayStr();
-  el.innerHTML = sessions.map((s, i) => {
+  const upcoming = all.filter(s => s.date >= today);
+  const nextDate = upcoming.length ? upcoming[0].date : null;
+
+  const adminButtonsHtml = isAdmin
+    ? `<button id="addTrainingLinkBtn" style="margin-bottom:10px;">+ Add Extra Session</button>
+       <button id="editTrainingSettingsLinkBtn" style="margin-bottom:16px;background:transparent;border:1px dashed var(--border);color:var(--muted);">⚙ Edit Weekly Day/Time/Venue</button>`
+    : '';
+
+  const cards = all.map(s => {
     const dateFmt = new Date(s.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-    const isNext = i === 0;
+    const isPast = s.date < today;
+    const isNext = s.date === nextDate && !isPast;
+    let adminControls = '';
+    if (isAdmin) {
+      if (s.recurring) {
+        adminControls = `<button class="del cancel-training" data-date="${s.date}" title="Cancel this week">✕</button>`;
+      } else {
+        adminControls = `<button class="del edit-training" data-id="${s.id}" title="Edit">✎</button><button class="del del-training" data-id="${s.id}" title="Delete">✕</button>`;
+      }
+    }
     return `
-      <div class="game${isNext ? ' next' : ''}">
+      <div class="game${isNext ? ' next' : ''}" style="${isPast ? 'opacity:0.5;' : ''}">
         <div class="top">
           <div class="left">
-            <div class="opp">Training</div>
-            <div class="date">${dateFmt}, ${s.time}</div>
+            <div class="opp">Training${s.recurring ? '' : ' (extra session)'}</div>
+            <div class="date">${dateFmt}, ${s.time || ''}</div>
           </div>
+          ${adminControls}
         </div>
-        <div class="venue-line">📍 <a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(s.venue)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">${escapeHtml(s.venue)}</a></div>
+        <div class="venue-line">📍 <a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(s.venue || '')}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">${escapeHtml(s.venue || '')}</a></div>
         ${renderAttendanceBlock(s.id)}
       </div>
     `;
   }).join('');
+
+  el.innerHTML = adminButtonsHtml + (cards || '<div class="empty">No training sessions scheduled.</div>');
+
+  const addLinkBtn = document.getElementById('addTrainingLinkBtn');
+  if (addLinkBtn) addLinkBtn.addEventListener('click', () => { editingTrainingId = null; clearTrainingForm(); setActiveTab('addTraining'); });
+
+  const settingsLinkBtn = document.getElementById('editTrainingSettingsLinkBtn');
+  if (settingsLinkBtn) settingsLinkBtn.addEventListener('click', () => {
+    document.getElementById('trainingDayInput').value = String(trainingSettings.dayOfWeek != null ? trainingSettings.dayOfWeek : 5);
+    document.getElementById('trainingSettingsTimeInput').value = trainingSettings.time || '';
+    document.getElementById('trainingSettingsVenueInput').value = trainingSettings.venue || '';
+    document.getElementById('trainingSettingsErr').textContent = '';
+    setActiveTab('trainingSettings');
+  });
+
+  el.querySelectorAll('.edit-training').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = extraTraining.find(x => x.id === btn.dataset.id);
+      if (!t) return;
+      editingTrainingId = t.id;
+      document.getElementById('trainingDateInput').value = t.date || '';
+      document.getElementById('trainingTimeInput').value = t.time || '';
+      document.getElementById('trainingVenueInput').value = t.venue || '';
+      setActiveTab('addTraining');
+    });
+  });
+
+  el.querySelectorAll('.del-training').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this extra session for everyone?')) return;
+      extraTraining = extraTraining.filter(t => t.id !== btn.dataset.id);
+      await save();
+      renderTraining();
+    });
+  });
+
+  el.querySelectorAll('.cancel-training').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Cancel training on this date for everyone?')) return;
+      if (!cancelledTrainingDates.includes(btn.dataset.date)) {
+        cancelledTrainingDates.push(btn.dataset.date);
+      }
+      await save();
+      renderTraining();
+    });
+  });
+
   wireAttendanceButtons(el);
 }
 
@@ -678,7 +807,7 @@ document.getElementById('gameDate').value = todayStr();
 
 // page switching — pages only reachable from Home; Home button returns you there
 function setActiveTab(tabName) {
-  const ADMIN_GATED = ['add', 'editTable', 'addEvent', 'addFixture', 'addPlayer'];
+  const ADMIN_GATED = ['add', 'editTable', 'addEvent', 'addFixture', 'addPlayer', 'addTraining', 'trainingSettings'];
   if (ADMIN_GATED.includes(tabName) && !isAdmin) {
     pendingAdminTarget = tabName;
     tabName = 'adminLogin';
@@ -689,6 +818,8 @@ function setActiveTab(tabName) {
   document.getElementById('homePane').style.display = tabName === 'home' ? 'block' : 'none';
   document.getElementById('fixturesPane').style.display = tabName === 'fixtures' ? 'block' : 'none';
   document.getElementById('trainingPane').style.display = tabName === 'training' ? 'block' : 'none';
+  document.getElementById('addTrainingPane').style.display = tabName === 'addTraining' ? 'block' : 'none';
+  document.getElementById('trainingSettingsPane').style.display = tabName === 'trainingSettings' ? 'block' : 'none';
   document.getElementById('addFixturePane').style.display = tabName === 'addFixture' ? 'block' : 'none';
   document.getElementById('squadPane').style.display = tabName === 'squad' ? 'block' : 'none';
   document.getElementById('addPlayerPane').style.display = tabName === 'addPlayer' ? 'block' : 'none';
@@ -758,6 +889,9 @@ async function refreshFromBlob() {
       attendance = (rec.attendance && typeof rec.attendance === 'object') ? rec.attendance : attendance;
       fixtures = Array.isArray(rec.fixtures) ? rec.fixtures : fixtures;
       squad = Array.isArray(rec.squad) ? rec.squad : squad;
+      extraTraining = Array.isArray(rec.extraTraining) ? rec.extraTraining : extraTraining;
+      cancelledTrainingDates = Array.isArray(rec.cancelledTrainingDates) ? rec.cancelledTrainingDates : cancelledTrainingDates;
+      trainingSettings = (rec.trainingSettings && typeof rec.trainingSettings === 'object') ? rec.trainingSettings : trainingSettings;
       render();
     }
   } catch (e) { /* keep showing last-known data if offline */ }
@@ -808,6 +942,9 @@ async function load() {
     attendance = (rec.attendance && typeof rec.attendance === 'object') ? rec.attendance : {};
     fixtures = Array.isArray(rec.fixtures) ? rec.fixtures : [];
     squad = Array.isArray(rec.squad) ? rec.squad : [];
+    extraTraining = Array.isArray(rec.extraTraining) ? rec.extraTraining : [];
+    cancelledTrainingDates = Array.isArray(rec.cancelledTrainingDates) ? rec.cancelledTrainingDates : [];
+    trainingSettings = (rec.trainingSettings && typeof rec.trainingSettings === 'object') ? rec.trainingSettings : trainingSettings;
   } catch (e) {
     document.getElementById('err').textContent = 'Could not connect — check your internet connection and reload.';
     games = [];
@@ -816,6 +953,8 @@ async function load() {
     attendance = {};
     fixtures = [];
     squad = [];
+    extraTraining = [];
+    cancelledTrainingDates = [];
     render();
     return;
   }
@@ -845,7 +984,7 @@ async function save() {
     const res = await fetch(JSONBLOB_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY },
-      body: JSON.stringify({ games, standings, events, attendance, fixtures, squad })
+      body: JSON.stringify({ games, standings, events, attendance, fixtures, squad, extraTraining, cancelledTrainingDates, trainingSettings })
     });
     if (!res.ok) throw new Error('bad status ' + res.status);
     document.getElementById('err').textContent = '';
@@ -1213,6 +1352,78 @@ document.getElementById('saveFixtureBtn').addEventListener('click', async () => 
   btn.textContent = 'Save Fixture';
   setActiveTab('fixtures');
   renderFixtures();
+});
+
+document.getElementById('saveTrainingBtn').addEventListener('click', async () => {
+  const date = document.getElementById('trainingDateInput').value;
+  const time = document.getElementById('trainingTimeInput').value.trim();
+  const venue = document.getElementById('trainingVenueInput').value.trim();
+  const errEl = document.getElementById('trainingErr');
+  const btn = document.getElementById('saveTrainingBtn');
+  errEl.textContent = '';
+
+  if (!date) { errEl.textContent = 'Pick a date.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const res = await fetch(JSONBLOB_URL, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
+    if (res.ok) {
+      const data = await res.json();
+      const rec = data.record || {};
+      extraTraining = Array.isArray(rec.extraTraining) ? rec.extraTraining : extraTraining;
+    }
+  } catch (e) { /* fall back to local copy if refresh fails */ }
+
+  if (editingTrainingId) {
+    const idx = extraTraining.findIndex(t => t.id === editingTrainingId);
+    if (idx !== -1) {
+      extraTraining[idx] = { ...extraTraining[idx], date, time, venue };
+    }
+  } else {
+    extraTraining.push({ id: 'extra-' + Date.now().toString(), date, time, venue });
+  }
+
+  await save();
+  editingTrainingId = null;
+  clearTrainingForm();
+  btn.disabled = false;
+  btn.textContent = 'Save Session';
+  setActiveTab('training');
+  renderTraining();
+});
+
+document.getElementById('saveTrainingSettingsBtn').addEventListener('click', async () => {
+  const dayOfWeek = parseInt(document.getElementById('trainingDayInput').value, 10);
+  const time = document.getElementById('trainingSettingsTimeInput').value.trim();
+  const venue = document.getElementById('trainingSettingsVenueInput').value.trim();
+  const errEl = document.getElementById('trainingSettingsErr');
+  const btn = document.getElementById('saveTrainingSettingsBtn');
+  errEl.textContent = '';
+
+  if (!time) { errEl.textContent = 'Enter a time.'; return; }
+  if (!venue) { errEl.textContent = 'Enter a venue.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const res = await fetch(JSONBLOB_URL, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
+    if (res.ok) {
+      const data = await res.json();
+      const rec = data.record || {};
+      trainingSettings = (rec.trainingSettings && typeof rec.trainingSettings === 'object') ? rec.trainingSettings : trainingSettings;
+    }
+  } catch (e) { /* fall back to local copy if refresh fails */ }
+
+  trainingSettings = { dayOfWeek, time, venue };
+
+  await save();
+  btn.disabled = false;
+  btn.textContent = 'Save Settings';
+  setActiveTab('training');
+  renderTraining();
 });
 
 let editingPlayerId = null;
