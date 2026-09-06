@@ -270,6 +270,10 @@
       <span class="hl-icon">🏃</span>
       <span class="hl-text">Training</span>
     </div>
+    <div class="home-link" data-goto="squad">
+      <span class="hl-icon">🎽</span>
+      <span class="hl-text">Squad</span>
+    </div>
   </div>
   <div class="home-links" style="margin-top:10px;">
     <div class="home-link" id="childNameRow" style="cursor:pointer;">
@@ -297,6 +301,45 @@
 
 <div id="fixturesPane" style="display:none;"></div>
 <div id="trainingPane" style="display:none;"></div>
+
+<div id="addFixturePane" style="display:none;">
+  <div class="add-form">
+    <label>Opponent</label>
+    <div class="row"><input id="fixtureOpponentInput" type="text" placeholder="e.g. Northallerton Town Blacks U10"></div>
+
+    <label>Date</label>
+    <div class="row"><input id="fixtureDateInput" type="date"></div>
+
+    <label>Kick-off Time</label>
+    <div class="row"><input id="fixtureTimeInput" type="time"></div>
+
+    <label>Venue</label>
+    <div class="row"><input id="fixtureVenueInput" type="text" placeholder="e.g. Grayfields Recreation Ground 4"></div>
+
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+      <input id="fixtureHomeInput" type="checkbox" style="width:auto;" checked>
+      <span>This is a home game</span>
+    </label>
+
+    <button id="saveFixtureBtn">Save Fixture</button>
+    <div class="error" id="fixtureErr"></div>
+  </div>
+</div>
+
+<div id="squadPane" style="display:none;"></div>
+
+<div id="addPlayerPane" style="display:none;">
+  <div class="add-form">
+    <label>Player Name</label>
+    <div class="row"><input id="playerNameInput" type="text" placeholder="e.g. Freddie Wilson"></div>
+
+    <label>Squad Number</label>
+    <div class="row"><input id="playerNumberInput" type="number" min="0" placeholder="e.g. 7"></div>
+
+    <button id="savePlayerBtn">Save Player</button>
+    <div class="error" id="playerErr"></div>
+  </div>
+</div>
 
 <div id="addPane" style="display:none;">
   <div class="add-form">
@@ -388,11 +431,14 @@ let isAdmin = (localStorage.getItem(ADMIN_STORAGE_KEY) === '1');
 let pendingAdminTarget = null;
 let events = [];
 let attendance = {};
+let fixtures = [];
+let squad = [];
 let games = [];
 let saving = false;
 
-// Upcoming league fixtures (U10 - PURPLE)
-const FIXTURES = [
+// Season fixtures — seeded once into shared storage below, then managed
+// entirely from the Fixtures tab (admin can add/edit/delete from then on).
+const SEED_FIXTURES_RAW = [
   { date: '2026-09-06', time: '11:00', home: 'Northallerton Town Blacks U10', away: 'FC Hartlepool Stags U10', venue: 'Ainderby Leisure Park 1' },
   { date: '2026-09-13', time: '10:00', home: 'Billingham Juniors U10', away: 'FC Hartlepool Stags U10', venue: 'Northfield Sportsdrome 8' },
   { date: '2026-09-20', time: '10:00', home: 'Stockton Town Reds U10', away: 'FC Hartlepool Stags U10', venue: 'Stockton Town Football Club 2' },
@@ -412,6 +458,10 @@ const FIXTURES = [
   { date: '2027-01-10', time: '10:00', home: 'FC Hartlepool Stags U10', away: 'Billingham Juniors U10', venue: 'Grayfields Recreation Ground 4' },
   { date: '2027-01-17', time: '10:00', home: 'FC Hartlepool Stags U10', away: 'Ferryhill Miners United U10', venue: 'Grayfields Recreation Ground 4' }
 ];
+const SEED_FIXTURES = SEED_FIXTURES_RAW.map(f => {
+  const isHome = f.home.startsWith('FC Hartlepool Stags');
+  return { id: f.date, opponent: isHome ? f.away : f.home, isHome, date: f.date, time: f.time, venue: f.venue };
+});
 
 function todayStr() { return new Date().toISOString().slice(0,10); }
 
@@ -628,7 +678,7 @@ document.getElementById('gameDate').value = todayStr();
 
 // page switching — pages only reachable from Home; Home button returns you there
 function setActiveTab(tabName) {
-  const ADMIN_GATED = ['add', 'editTable', 'addEvent'];
+  const ADMIN_GATED = ['add', 'editTable', 'addEvent', 'addFixture', 'addPlayer'];
   if (ADMIN_GATED.includes(tabName) && !isAdmin) {
     pendingAdminTarget = tabName;
     tabName = 'adminLogin';
@@ -639,6 +689,9 @@ function setActiveTab(tabName) {
   document.getElementById('homePane').style.display = tabName === 'home' ? 'block' : 'none';
   document.getElementById('fixturesPane').style.display = tabName === 'fixtures' ? 'block' : 'none';
   document.getElementById('trainingPane').style.display = tabName === 'training' ? 'block' : 'none';
+  document.getElementById('addFixturePane').style.display = tabName === 'addFixture' ? 'block' : 'none';
+  document.getElementById('squadPane').style.display = tabName === 'squad' ? 'block' : 'none';
+  document.getElementById('addPlayerPane').style.display = tabName === 'addPlayer' ? 'block' : 'none';
   document.getElementById('addPane').style.display = tabName === 'add' ? 'block' : 'none';
   document.getElementById('gamesPane').style.display = tabName === 'games' ? 'block' : 'none';
   document.getElementById('scorersPane').style.display = tabName === 'scorers' ? 'block' : 'none';
@@ -647,7 +700,7 @@ function setActiveTab(tabName) {
   document.getElementById('eventsPane').style.display = tabName === 'events' ? 'block' : 'none';
   document.getElementById('addEventPane').style.display = tabName === 'addEvent' ? 'block' : 'none';
   document.getElementById('adminLoginPane').style.display = tabName === 'adminLogin' ? 'block' : 'none';
-  if (tabName === 'games' || tabName === 'scorers' || tabName === 'table' || tabName === 'events' || tabName === 'fixtures' || tabName === 'training') {
+  if (tabName === 'games' || tabName === 'scorers' || tabName === 'table' || tabName === 'events' || tabName === 'fixtures' || tabName === 'training' || tabName === 'squad') {
     refreshFromBlob();
   }
   if (tabName === 'editTable') {
@@ -703,6 +756,8 @@ async function refreshFromBlob() {
       standings = Array.isArray(rec.standings) ? rec.standings : standings;
       events = Array.isArray(rec.events) ? rec.events : events;
       attendance = (rec.attendance && typeof rec.attendance === 'object') ? rec.attendance : attendance;
+      fixtures = Array.isArray(rec.fixtures) ? rec.fixtures : fixtures;
+      squad = Array.isArray(rec.squad) ? rec.squad : squad;
       render();
     }
   } catch (e) { /* keep showing last-known data if offline */ }
@@ -751,12 +806,16 @@ async function load() {
     standings = Array.isArray(rec.standings) ? rec.standings : [];
     events = Array.isArray(rec.events) ? rec.events : [];
     attendance = (rec.attendance && typeof rec.attendance === 'object') ? rec.attendance : {};
+    fixtures = Array.isArray(rec.fixtures) ? rec.fixtures : [];
+    squad = Array.isArray(rec.squad) ? rec.squad : [];
   } catch (e) {
     document.getElementById('err').textContent = 'Could not connect — check your internet connection and reload.';
     games = [];
     standings = [];
     events = [];
     attendance = {};
+    fixtures = [];
+    squad = [];
     render();
     return;
   }
@@ -768,6 +827,10 @@ async function load() {
   }
   if (standings.length === 0) {
     standings = SEED_STANDINGS;
+    needsSave = true;
+  }
+  if (fixtures.length === 0) {
+    fixtures = SEED_FIXTURES;
     needsSave = true;
   }
   if (needsSave) {
@@ -782,7 +845,7 @@ async function save() {
     const res = await fetch(JSONBLOB_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY },
-      body: JSON.stringify({ games, standings, events, attendance })
+      body: JSON.stringify({ games, standings, events, attendance, fixtures, squad })
     });
     if (!res.ok) throw new Error('bad status ' + res.status);
     document.getElementById('err').textContent = '';
@@ -803,39 +866,89 @@ function shortOpp(name) {
   return name.replace(/\s*U10$/i, '').trim();
 }
 
+let editingFixtureId = null;
+
 function renderFixtures() {
   const el = document.getElementById('fixturesPane');
   const today = todayStr();
-  const upcoming = FIXTURES.filter(f => f.date >= today);
+  const sorted = [...fixtures].sort((a, b) => a.date.localeCompare(b.date));
+  const upcoming = sorted.filter(f => f.date >= today);
   const nextDate = upcoming.length ? upcoming[0].date : null;
 
-  if (FIXTURES.length === 0) {
-    el.innerHTML = '<div class="empty">No fixtures loaded yet.</div>';
+  const addBtnHtml = isAdmin
+    ? `<button id="addFixtureLinkBtn" style="margin-bottom:16px;">+ Add Fixture</button>`
+    : '';
+
+  if (sorted.length === 0) {
+    el.innerHTML = addBtnHtml + '<div class="empty">No fixtures loaded yet.</div>';
+    const addLinkBtnEmpty = document.getElementById('addFixtureLinkBtn');
+    if (addLinkBtnEmpty) addLinkBtnEmpty.addEventListener('click', () => { editingFixtureId = null; clearFixtureForm(); setActiveTab('addFixture'); });
     return;
   }
 
-  el.innerHTML = FIXTURES.map(f => {
-    const isHome = f.home.startsWith('FC Hartlepool Stags');
-    const opponent = isHome ? shortOpp(f.away) : shortOpp(f.home);
+  const cards = sorted.map(f => {
+    const opponent = shortOpp(f.opponent || '');
     const dateFmt = new Date(f.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
     const isPast = f.date < today;
     const isNext = f.date === nextDate && !isPast;
-    const sessionId = 'game-' + f.date;
+    const sessionId = 'game-' + f.id;
+    const adminControls = isAdmin
+      ? `<button class="del edit-fixture" data-id="${f.id}" title="Edit">✎</button><button class="del del-fixture" data-id="${f.id}" title="Delete">✕</button>`
+      : '';
     return `
       <div class="game fixture${isNext ? ' next' : ''}" style="${isPast ? 'opacity:0.5;' : ''}">
         <div class="top">
           <div class="left">
-            <div class="opp">${isHome ? 'vs' : '@'} ${escapeHtml(opponent)}</div>
-            <div class="date">${dateFmt}, ${f.time}</div>
+            <div class="opp">${f.isHome ? 'vs' : '@'} ${escapeHtml(opponent)}</div>
+            <div class="date">${dateFmt}, ${f.time || ''}</div>
           </div>
-          <span class="badge ${isHome ? 'H' : 'A'}">${isHome ? 'HOME' : 'AWAY'}</span>
+          <span class="badge ${f.isHome ? 'H' : 'A'}">${f.isHome ? 'HOME' : 'AWAY'}</span>
+          ${adminControls}
         </div>
-        <div class="venue-line">📍 <a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(f.venue)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">${escapeHtml(f.venue)}</a></div>
+        <div class="venue-line">📍 <a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(f.venue || '')}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">${escapeHtml(f.venue || '')}</a></div>
         ${renderAttendanceBlock(sessionId)}
       </div>
     `;
   }).join('');
+
+  el.innerHTML = addBtnHtml + cards;
+
+  const addLinkBtn = document.getElementById('addFixtureLinkBtn');
+  if (addLinkBtn) addLinkBtn.addEventListener('click', () => { editingFixtureId = null; clearFixtureForm(); setActiveTab('addFixture'); });
+
+  el.querySelectorAll('.edit-fixture').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const f = fixtures.find(x => x.id === btn.dataset.id);
+      if (!f) return;
+      editingFixtureId = f.id;
+      document.getElementById('fixtureOpponentInput').value = f.opponent || '';
+      document.getElementById('fixtureDateInput').value = f.date || '';
+      document.getElementById('fixtureTimeInput').value = f.time || '';
+      document.getElementById('fixtureVenueInput').value = f.venue || '';
+      document.getElementById('fixtureHomeInput').checked = !!f.isHome;
+      setActiveTab('addFixture');
+    });
+  });
+
+  el.querySelectorAll('.del-fixture').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this fixture for everyone?')) return;
+      fixtures = fixtures.filter(f => f.id !== btn.dataset.id);
+      await save();
+      renderFixtures();
+    });
+  });
+
   wireAttendanceButtons(el);
+}
+
+function clearFixtureForm() {
+  document.getElementById('fixtureOpponentInput').value = '';
+  document.getElementById('fixtureDateInput').value = '';
+  document.getElementById('fixtureTimeInput').value = '';
+  document.getElementById('fixtureVenueInput').value = '';
+  document.getElementById('fixtureHomeInput').checked = true;
+  document.getElementById('fixtureErr').textContent = '';
 }
 
 function renderTable() {
@@ -1059,6 +1172,150 @@ document.getElementById('saveEventBtn').addEventListener('click', async () => {
   renderEvents();
 });
 
+document.getElementById('saveFixtureBtn').addEventListener('click', async () => {
+  const opponent = document.getElementById('fixtureOpponentInput').value.trim();
+  const date = document.getElementById('fixtureDateInput').value;
+  const time = document.getElementById('fixtureTimeInput').value;
+  const venue = document.getElementById('fixtureVenueInput').value.trim();
+  const isHome = document.getElementById('fixtureHomeInput').checked;
+  const errEl = document.getElementById('fixtureErr');
+  const btn = document.getElementById('saveFixtureBtn');
+  errEl.textContent = '';
+
+  if (!opponent) { errEl.textContent = 'Enter the opponent name.'; return; }
+  if (!date) { errEl.textContent = 'Pick a date.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const res = await fetch(JSONBLOB_URL, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
+    if (res.ok) {
+      const data = await res.json();
+      const rec = data.record || {};
+      fixtures = Array.isArray(rec.fixtures) ? rec.fixtures : fixtures;
+    }
+  } catch (e) { /* fall back to local copy if refresh fails */ }
+
+  if (editingFixtureId) {
+    const idx = fixtures.findIndex(f => f.id === editingFixtureId);
+    if (idx !== -1) {
+      fixtures[idx] = { ...fixtures[idx], opponent, date, time, venue, isHome };
+    }
+  } else {
+    fixtures.push({ id: Date.now().toString(), opponent, date, time, venue, isHome });
+  }
+
+  await save();
+  editingFixtureId = null;
+  clearFixtureForm();
+  btn.disabled = false;
+  btn.textContent = 'Save Fixture';
+  setActiveTab('fixtures');
+  renderFixtures();
+});
+
+let editingPlayerId = null;
+
+function clearPlayerForm() {
+  document.getElementById('playerNameInput').value = '';
+  document.getElementById('playerNumberInput').value = '';
+  document.getElementById('playerErr').textContent = '';
+}
+
+function renderSquad() {
+  const el = document.getElementById('squadPane');
+  const sorted = [...squad].sort((a, b) => (a.number || 0) - (b.number || 0));
+
+  const addBtnHtml = isAdmin
+    ? `<button id="addPlayerLinkBtn" style="margin-bottom:16px;">+ Add Player</button>`
+    : '';
+
+  if (sorted.length === 0) {
+    el.innerHTML = addBtnHtml + '<div class="empty">No squad list yet.</div>';
+  } else {
+    const rows = sorted.map(p => {
+      const adminControls = isAdmin
+        ? `<button class="del edit-player" data-id="${p.id}" title="Edit">✎</button><button class="del del-player" data-id="${p.id}" title="Delete">✕</button>`
+        : '';
+      return `
+        <div class="game">
+          <div class="top">
+            <div class="left">
+              <div class="opp">#${p.number != null ? p.number : '-'}  ${escapeHtml(p.name)}</div>
+            </div>
+            ${adminControls}
+          </div>
+        </div>
+      `;
+    }).join('');
+    el.innerHTML = addBtnHtml + rows;
+  }
+
+  const addLinkBtn = document.getElementById('addPlayerLinkBtn');
+  if (addLinkBtn) addLinkBtn.addEventListener('click', () => { editingPlayerId = null; clearPlayerForm(); setActiveTab('addPlayer'); });
+
+  el.querySelectorAll('.edit-player').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = squad.find(x => x.id === btn.dataset.id);
+      if (!p) return;
+      editingPlayerId = p.id;
+      document.getElementById('playerNameInput').value = p.name || '';
+      document.getElementById('playerNumberInput').value = p.number != null ? p.number : '';
+      setActiveTab('addPlayer');
+    });
+  });
+
+  el.querySelectorAll('.del-player').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Remove this player for everyone?')) return;
+      squad = squad.filter(p => p.id !== btn.dataset.id);
+      await save();
+      renderSquad();
+    });
+  });
+}
+
+document.getElementById('savePlayerBtn').addEventListener('click', async () => {
+  const name = document.getElementById('playerNameInput').value.trim();
+  const numberRaw = document.getElementById('playerNumberInput').value;
+  const number = numberRaw === '' ? null : parseInt(numberRaw, 10);
+  const errEl = document.getElementById('playerErr');
+  const btn = document.getElementById('savePlayerBtn');
+  errEl.textContent = '';
+
+  if (!name) { errEl.textContent = "Enter the player's name."; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const res = await fetch(JSONBLOB_URL, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
+    if (res.ok) {
+      const data = await res.json();
+      const rec = data.record || {};
+      squad = Array.isArray(rec.squad) ? rec.squad : squad;
+    }
+  } catch (e) { /* fall back to local copy if refresh fails */ }
+
+  if (editingPlayerId) {
+    const idx = squad.findIndex(p => p.id === editingPlayerId);
+    if (idx !== -1) {
+      squad[idx] = { ...squad[idx], name, number };
+    }
+  } else {
+    squad.push({ id: Date.now().toString(), name, number });
+  }
+
+  await save();
+  editingPlayerId = null;
+  clearPlayerForm();
+  btn.disabled = false;
+  btn.textContent = 'Save Player';
+  setActiveTab('squad');
+  renderSquad();
+});
+
 function render() {
   const statsEl = document.getElementById('stats');
   const gamesEl = document.getElementById('gamesPane');
@@ -1182,6 +1439,7 @@ function render() {
   renderTraining();
   renderTable();
   renderEvents();
+  renderSquad();
 }
 
 document.getElementById('addBtn').addEventListener('click', async () => {
