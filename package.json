@@ -1,0 +1,7 @@
+{
+  "name": "fc-stags-tracker",
+  "private": true,
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
