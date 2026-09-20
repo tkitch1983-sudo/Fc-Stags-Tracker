@@ -45,6 +45,35 @@ export default async (req: Request, context: any) => {
   };
   makeTappable();
   new MutationObserver(makeTappable).observe(document.body, { childList: true, subtree: true });
+
+  const desiredStandings = [
+    { team: 'Hartlepool Stags', p: 3, w: 3, d: 0, l: 0, f: 14, a: 1 },
+    { team: 'Nunthorpe', p: 3, w: 3, d: 0, l: 0, f: 21, a: 12 },
+    { team: 'Guisborough Town', p: 3, w: 2, d: 0, l: 1, f: 13, a: 9 },
+    { team: 'Middleton Rangers', p: 3, w: 2, d: 0, l: 1, f: 8, a: 5 },
+    { team: 'Kader', p: 3, w: 1, d: 1, l: 1, f: 10, a: 6 },
+    { team: 'Stockton Town', p: 3, w: 1, d: 1, l: 1, f: 9, a: 5 },
+    { team: 'Redcar Town', p: 3, w: 1, d: 1, l: 1, f: 10, a: 9 },
+    { team: 'Northallerton Blacks', p: 3, w: 0, d: 1, l: 2, f: 5, a: 17 },
+    { team: 'Billingham', p: 3, w: 0, d: 0, l: 3, f: 3, a: 14 },
+    { team: 'Ferryhill', p: 3, w: 0, d: 0, l: 3, f: 2, a: 17 }
+  ];
+
+  const syncLatestLeagueTable = async () => {
+    try {
+      if (typeof refreshFromBlob !== 'function' || typeof save !== 'function') return;
+      await refreshFromBlob();
+      if (!Array.isArray(standings) || standings.length === 0) return;
+      const maxPlayed = Math.max(...standings.map((t) => Number(t.p) || 0));
+      if (maxPlayed > 3) return;
+      const norm = (arr) => JSON.stringify(arr.map((t) => [t.team, Number(t.p)||0, Number(t.w)||0, Number(t.d)||0, Number(t.l)||0, Number(t.f)||0, Number(t.a)||0]));
+      if (norm(standings) === norm(desiredStandings)) return;
+      standings = desiredStandings.map((t) => ({ ...t }));
+      const ok = await save();
+      if (ok !== false && typeof renderTable === 'function') renderTable();
+    } catch (e) { /* leave existing table untouched if sync fails */ }
+  };
+  setTimeout(syncLatestLeagueTable, 1200);
 })();
 </script>`;
 
