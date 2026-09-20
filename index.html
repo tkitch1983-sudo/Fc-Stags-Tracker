@@ -679,6 +679,55 @@ function wireAttendanceButtons(container) {
   });
 }
 
+function whatsappAvailabilityMessage(kind, title, date, time, venue, sessionId) {
+  const dateFmt = date ? new Date(date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) : '';
+  const availabilityUrl = new URL(location.href);
+  availabilityUrl.searchParams.set('availability', sessionId);
+  const lines = [
+    'FC Hartlepool Stags U10',
+    '',
+    'Availability needed for ' + kind + ':',
+    title,
+    dateFmt + (time ? ' at ' + time : ''),
+    venue ? '📍 ' + venue : '',
+    '',
+    'Please tap the link below and select Yes or No:',
+    availabilityUrl.toString()
+  ].filter(Boolean);
+  return lines.join('\n');
+}
+
+function shareAvailabilityOnWhatsApp(kind, title, date, time, venue, sessionId) {
+  const msg = whatsappAvailabilityMessage(kind, title, date, time, venue, sessionId);
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank', 'noopener');
+}
+
+function wireWhatsAppButtons(container) {
+  container.querySelectorAll('.whatsapp-availability').forEach(btn => {
+    btn.addEventListener('click', () => {
+      shareAvailabilityOnWhatsApp(
+        btn.dataset.kind,
+        btn.dataset.title,
+        btn.dataset.date,
+        btn.dataset.time,
+        btn.dataset.venue,
+        btn.dataset.session
+      );
+    });
+  });
+}
+
+function openAvailabilityFromLink() {
+  const sessionId = new URLSearchParams(location.search).get('availability');
+  if (!sessionId) return;
+  if (sessionId.startsWith('game-')) setActiveTab('fixtures');
+  else if (sessionId.startsWith('training-') || sessionId.startsWith('extra-')) setActiveTab('training');
+  setTimeout(() => {
+    const row = document.querySelector('.attend-row[data-session="' + CSS.escape(sessionId) + '"]');
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 700);
+}
+
 // ---- Training sessions (auto-generated every Friday) ----
 function generateTrainingSessions(weeksAhead) {
   const sessions = [];
@@ -750,6 +799,7 @@ function renderTraining() {
         </div>
         <div class="venue-line">📍 <a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(s.venue || '')}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">${escapeHtml(s.venue || '')}</a></div>
         ${renderAttendanceBlock(s.id)}
+        ${isAdmin ? `<button class="whatsapp-availability" data-kind="training" data-title="Training" data-date="${s.date}" data-time="${escapeHtml(s.time || '')}" data-venue="${escapeHtml(s.venue || '')}" data-session="${s.id}" style="margin-top:10px;">💬 Ask Availability on WhatsApp</button>` : ''}
       </div>
     `;
   }).join('');
@@ -801,6 +851,7 @@ function renderTraining() {
   });
 
   wireAttendanceButtons(el);
+  wireWhatsAppButtons(el);
 }
 
 document.getElementById('gameDate').value = todayStr();
@@ -1046,6 +1097,7 @@ function renderFixtures() {
         </div>
         <div class="venue-line">📍 <a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(f.venue || '')}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">${escapeHtml(f.venue || '')}</a></div>
         ${renderAttendanceBlock(sessionId)}
+        ${isAdmin ? `<button class="whatsapp-availability" data-kind="fixture" data-title="${f.isHome ? 'Home vs ' : 'Away at '}${escapeHtml(opponent)}" data-date="${f.date}" data-time="${escapeHtml(f.time || '')}" data-venue="${escapeHtml(f.venue || '')}" data-session="${sessionId}" style="margin-top:10px;">💬 Ask Availability on WhatsApp</button>` : ''}
       </div>
     `;
   }).join('');
@@ -1079,6 +1131,7 @@ function renderFixtures() {
   });
 
   wireAttendanceButtons(el);
+  wireWhatsAppButtons(el);
 }
 
 function clearFixtureForm() {
@@ -1709,7 +1762,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
 });
 
 updateAdminStatusUI();
-load();
+load().then(openAvailabilityFromLink);
 </script>
 
 </body>
