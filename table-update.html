@@ -11,7 +11,7 @@
 <body>
 <div class="wrap">
   <h1>Update Full League Table</h1>
-  <div class="sub">The table from your screenshot is already filled in. Change anything you need, then press one button.</div>
+  <div class="sub">Matchday 3 table is filled in below.</div>
   <div class="card">
     <table>
       <thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>F</th><th>A</th></tr></thead>
@@ -24,35 +24,37 @@
 <iframe id="appFrame" src="/"></iframe>
 <script>
 const initial = [
-  {team:'Hartlepool Stags',p:2,w:2,d:0,l:0,f:12,a:1},
-  {team:'Middleton Rangers',p:2,w:2,d:0,l:0,f:8,a:1},
-  {team:'Nunthorpe',p:2,w:2,d:0,l:0,f:13,a:9},
-  {team:'Stockton Town',p:2,w:1,d:1,l:0,f:9,a:3},
-  {team:'Guisborough Town',p:2,w:1,d:0,l:1,f:8,a:8},
-  {team:'Kader',p:2,w:0,d:1,l:1,f:4,a:5},
-  {team:'Redcar Town',p:2,w:0,d:1,l:1,f:6,a:9},
-  {team:'Northallerton Blacks',p:2,w:0,d:1,l:1,f:2,a:9},
-  {team:'Billingham',p:2,w:0,d:0,l:2,f:2,a:9},
-  {team:'Ferryhill',p:2,w:0,d:0,l:2,f:1,a:11}
+  {team:'Hartlepool Stags',p:3,w:3,d:0,l:0,f:14,a:1},
+  {team:'Nunthorpe',p:3,w:3,d:0,l:0,f:21,a:12},
+  {team:'Guisborough Town',p:3,w:2,d:0,l:1,f:13,a:9},
+  {team:'Middleton Rangers',p:3,w:2,d:0,l:1,f:8,a:5},
+  {team:'Kader',p:3,w:1,d:1,l:1,f:10,a:6},
+  {team:'Stockton Town',p:3,w:1,d:1,l:1,f:9,a:5},
+  {team:'Redcar Town',p:3,w:1,d:1,l:1,f:10,a:9},
+  {team:'Northallerton Blacks',p:3,w:0,d:1,l:2,f:5,a:17},
+  {team:'Billingham',p:3,w:0,d:0,l:3,f:3,a:14},
+  {team:'Ferryhill',p:3,w:0,d:0,l:3,f:2,a:17}
 ];
-const body = document.getElementById('rows');
-body.innerHTML = initial.map((r,i)=>`<tr data-i="${i}"><td>${i+1}</td><td><input class="team" data-k="team" value="${r.team}"></td>${['p','w','d','l','f','a'].map(k=>`<td><input inputmode="numeric" type="number" min="0" data-k="${k}" value="${r[k]}"></td>`).join('')}</tr>`).join('');
+const body=document.getElementById('rows');
+body.innerHTML=initial.map((r,i)=>`<tr><td>${i+1}</td><td><input class="team" data-k="team" value="${r.team}"></td>${['p','w','d','l','f','a'].map(k=>`<td><input type="number" min="0" inputmode="numeric" data-k="${k}" value="${r[k]}"></td>`).join('')}</tr>`).join('');
 function collect(){return [...body.querySelectorAll('tr')].map(tr=>{const o={};tr.querySelectorAll('input').forEach(x=>o[x.dataset.k]=x.dataset.k==='team'?x.value.trim():(parseInt(x.value,10)||0));return o;}).filter(x=>x.team);}
-function wait(ms){return new Promise(r=>setTimeout(r,ms));}
-async function waitForApp(w){for(let i=0;i<80;i++){try{if(w.eval("typeof save==='function' && typeof render==='function' && typeof standings!=='undefined'")) return true;}catch(e){}await wait(250);}return false;}
-document.getElementById('saveBtn').addEventListener('click', async()=>{
-  const btn=document.getElementById('saveBtn'), status=document.getElementById('status'), frame=document.getElementById('appFrame');
-  btn.disabled=true; btn.textContent='Saving…'; status.className='status'; status.textContent='Loading the main app…';
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function waitForApp(w){for(let i=0;i<100;i++){try{if(w.eval("typeof save==='function' && typeof render==='function' && typeof standings!=='undefined'"))return true;}catch(e){}await wait(200);}return false;}
+async function saveWholeTable(){
+  const btn=document.getElementById('saveBtn'),status=document.getElementById('status'),frame=document.getElementById('appFrame');
+  btn.disabled=true;btn.textContent='Saving…';status.className='status';status.textContent='Loading the main app…';
   try{
     const w=frame.contentWindow;
-    if(!(await waitForApp(w))) throw new Error('The main app did not finish loading.');
+    if(!(await waitForApp(w)))throw new Error('app not ready');
     const data=collect();
-    const code=`standings = ${JSON.stringify(data)}; await save(); render(); true`;
-    await w.eval(`(async()=>{${code}})()`);
-    status.className='status ok'; status.textContent='League table saved successfully.';
-  }catch(e){status.className='status err'; status.textContent='Could not save the table. Reload this page and try again.';}
-  btn.disabled=false; btn.textContent='Save Whole Table';
-});
+    const ok=await w.eval(`(async()=>{standings=${JSON.stringify(data)};const saved=await save();render();return saved;})()`);
+    if(ok===false)throw new Error('save failed');
+    status.className='status ok';status.textContent='League table saved successfully.';
+  }catch(e){status.className='status err';status.textContent='Could not save the table. Reload and try again.';}
+  btn.disabled=false;btn.textContent='Save Whole Table';
+}
+document.getElementById('saveBtn').addEventListener('click',saveWholeTable);
+if(new URLSearchParams(location.search).get('apply')==='1')setTimeout(saveWholeTable,700);
 </script>
 </body>
 </html>
