@@ -535,7 +535,7 @@ async function renderParentPhotos() {
     const res = await fetch(SUPABASE_URL + '/storage/v1/object/list/' + SUPABASE_GALLERY_BUCKET, {
       method:'POST',
       headers:{'apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify({prefix:'uploads',limit:200,offset:0,sortBy:{column:'created_at',order:'desc'}})
+      body:JSON.stringify({prefix:'uploads/',limit:200,offset:0,sortBy:{column:'created_at',order:'desc'}})
     });
     if (!res.ok) throw new Error('Could not load photos.');
     const files = await res.json();
