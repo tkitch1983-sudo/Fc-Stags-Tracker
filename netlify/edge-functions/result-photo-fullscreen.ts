@@ -74,6 +74,66 @@ export default async (req: Request, context: any) => {
     } catch (e) { /* leave existing table untouched if sync fails */ }
   };
   setTimeout(syncLatestLeagueTable, 1200);
+
+  const restoreMissingMotmPhotos = async () => {
+    try {
+      if (typeof refreshFromBlob !== 'function' || typeof save !== 'function' || typeof games === 'undefined') return;
+      await refreshFromBlob();
+      if (!Array.isArray(games) || games.length === 0) return;
+
+      let changed = false;
+      const sameGame = (a, b) => {
+        if (String(a.id || '') && String(a.id || '') === String(b.id || '')) return true;
+        return String(a.date || '') === String(b.date || '') && String(a.opponent || '').trim().toLowerCase() === String(b.opponent || '').trim().toLowerCase();
+      };
+
+      const missing = () => games.filter((g) => !g.motmPhoto);
+      if (missing().length) {
+        try {
+          const countRes = await fetch(JSONBLOB_URL + '/versions/count', { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
+          if (countRes.ok) {
+            const countData = await countRes.json();
+            const versionCount = Number(countData && countData.metadata && countData.metadata.versionCount) || 0;
+            const oldest = Math.max(1, versionCount - 59);
+            for (let v = versionCount; v >= oldest && missing().length; v--) {
+              try {
+                const vr = await fetch(JSONBLOB_URL + '/' + v, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
+                if (!vr.ok) continue;
+                const vd = await vr.json();
+                const oldGames = vd && vd.record && Array.isArray(vd.record.games) ? vd.record.games : [];
+                oldGames.forEach((oldGame) => {
+                  if (!oldGame || !oldGame.motmPhoto) return;
+                  const current = games.find((g) => !g.motmPhoto && sameGame(g, oldGame));
+                  if (current) {
+                    current.motmPhoto = oldGame.motmPhoto;
+                    changed = true;
+                  }
+                });
+              } catch (e) { /* try older version */ }
+            }
+          }
+        } catch (e) { /* use known storage fallbacks below */ }
+      }
+
+      const fallbacks = [
+        { date: '2026-09-20', opponent: 'Stockton Town Reds', url: 'https://xpfondrwxsydesskmaus.supabase.co/storage/v1/object/public/stags-site-photos/motm/1789903316276-hkho7mre.png' },
+        { date: '2026-09-06', opponent: 'Northallerton', url: 'https://xpfondrwxsydesskmaus.supabase.co/storage/v1/object/public/stags-site-photos/motm/1789906242253-yykatw2x.png' }
+      ];
+      fallbacks.forEach((f) => {
+        const current = games.find((g) => !g.motmPhoto && String(g.date || '') === f.date && String(g.opponent || '').toLowerCase().includes(f.opponent.toLowerCase()));
+        if (current) {
+          current.motmPhoto = f.url;
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        const ok = await save();
+        if (ok !== false && typeof render === 'function') render();
+      }
+    } catch (e) { /* never disturb results if recovery fails */ }
+  };
+  setTimeout(restoreMissingMotmPhotos, 2200);
 })();
 </script>`;
 
