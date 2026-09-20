@@ -541,7 +541,8 @@ async function renderParentPhotos() {
     const files = await res.json();
     const imgs = files.filter(x => x && x.name && !x.name.endsWith('/'));
     gallery.innerHTML = imgs.length ? imgs.map(x => {
-      const url = SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_GALLERY_BUCKET + '/uploads/' + encodeURIComponent(x.name);
+      const objectName = x.name.startsWith('uploads/') ? x.name : ('uploads/' + x.name);
+      const url = SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_GALLERY_BUCKET + '/' + objectName.split('/').map(encodeURIComponent).join('/');
       return '<a href="'+url+'" target="_blank" rel="noopener"><img src="'+url+'" alt="Team photo" loading="lazy" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;display:block;"></a>';
     }).join('') : '<div class="sub" style="grid-column:1/-1;">No photos yet — add the first ones above.</div>';
   } catch(e) { gallery.innerHTML = '<div class="error" style="grid-column:1/-1;">Could not load the gallery.</div>'; }
