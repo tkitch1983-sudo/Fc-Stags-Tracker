@@ -39,13 +39,14 @@ const body=document.getElementById('rows');
 body.innerHTML=initial.map((r,i)=>`<tr><td>${i+1}</td><td><input class="team" data-k="team" value="${r.team}"></td>${['p','w','d','l','f','a'].map(k=>`<td><input type="number" min="0" inputmode="numeric" data-k="${k}" value="${r[k]}"></td>`).join('')}</tr>`).join('');
 function collect(){return [...body.querySelectorAll('tr')].map(tr=>{const o={};tr.querySelectorAll('input').forEach(x=>o[x.dataset.k]=x.dataset.k==='team'?x.value.trim():(parseInt(x.value,10)||0));return o;}).filter(x=>x.team);}
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
-async function waitForApp(w){for(let i=0;i<100;i++){try{if(w.eval("typeof save==='function' && typeof render==='function' && typeof standings!=='undefined'"))return true;}catch(e){}await wait(200);}return false;}
+async function waitForApp(w){for(let i=0;i<100;i++){try{if(w.eval("typeof save==='function' && typeof render==='function' && typeof load==='function' && typeof standings!=='undefined'"))return true;}catch(e){}await wait(200);}return false;}
 async function saveWholeTable(){
   const btn=document.getElementById('saveBtn'),status=document.getElementById('status'),frame=document.getElementById('appFrame');
-  btn.disabled=true;btn.textContent='Saving…';status.className='status';status.textContent='Loading the main app…';
+  btn.disabled=true;btn.textContent='Saving…';status.className='status';status.textContent='Loading current shared data…';
   try{
     const w=frame.contentWindow;
     if(!(await waitForApp(w)))throw new Error('app not ready');
+    await w.eval(`(async()=>{await load();return true;})()`);
     const data=collect();
     const ok=await w.eval(`(async()=>{standings=${JSON.stringify(data)};const saved=await save();render();return saved;})()`);
     if(ok===false)throw new Error('save failed');
