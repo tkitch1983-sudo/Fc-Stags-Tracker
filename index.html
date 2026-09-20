@@ -1668,12 +1668,20 @@ function readResultPhoto(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader(), img = new Image();
     reader.onload = () => { img.onload = () => {
-      const max = 420, scale = Math.min(1, max / Math.max(img.width, img.height));
+      // Keep MOTM photos deliberately small because they are stored with the shared team JSON.
+      const max = 300, scale = Math.min(1, max / Math.max(img.width, img.height));
       const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
       canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-      resolve(canvas.toDataURL('image/jpeg',0.42));
-    }; img.src = reader.result; };
+      let quality = 0.32;
+      let data = canvas.toDataURL('image/jpeg', quality);
+      while (data.length > 90000 && quality > 0.14) {
+        quality -= 0.04;
+        data = canvas.toDataURL('image/jpeg', quality);
+      }
+      resolve(data);
+    }; img.onerror = reject; img.src = reader.result; };
     reader.onerror = reject; reader.readAsDataURL(file);
   });
 }
@@ -1867,6 +1875,20 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   const scorerInputs = scorersRaw.split(',').map(s => s.trim()).filter(Boolean);
   const motm = document.getElementById('motmInput').value.trim();
   const writeUp = document.getElementById('writeUpInput').value.trim();
+
+  if (editingMotmPhoto && editingMotmPhoto.length > 100000) {
+    try {
+      const img = new Image();
+      await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = editingMotmPhoto; });
+      const canvas = document.createElement('canvas');
+      const scale = Math.min(1, 260 / Math.max(img.width, img.height));
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      editingMotmPhoto = canvas.toDataURL('image/jpeg', 0.22);
+      setMotmPhotoPreview(editingMotmPhoto);
+    } catch (e) {}
+  }
 
   addBtn.disabled = true;
   addBtn.textContent = 'Saving…';
