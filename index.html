@@ -543,8 +543,31 @@ async function renderParentPhotos() {
     gallery.innerHTML = imgs.length ? imgs.map(x => {
       const objectName = x.name.startsWith('uploads/') ? x.name : ('uploads/' + x.name);
       const url = SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_GALLERY_BUCKET + '/' + objectName.split('/').map(encodeURIComponent).join('/');
-      return '<a href="'+url+'" target="_blank" rel="noopener"><img src="'+url+'" alt="Team photo" loading="lazy" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;display:block;"></a>';
+      return '<div><a href="'+url+'" target="_blank" rel="noopener"><img src="'+url+'" alt="Team photo" loading="lazy" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;display:block;"></a>' +
+        (isAdmin ? '<button type="button" class="delete-gallery-photo" data-path="'+escapeHtml(objectName)+'" style="margin-top:6px;background:transparent;border:1px solid var(--loss);color:var(--loss);padding:8px 10px;">🗑 Delete</button>' : '') +
+        '</div>';
     }).join('') : '<div class="sub" style="grid-column:1/-1;">No photos yet — add the first ones above.</div>';
+    if (isAdmin) {
+      gallery.querySelectorAll('.delete-gallery-photo').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Delete this photo permanently?')) return;
+          btn.disabled = true;
+          btn.textContent = 'Deleting…';
+          try {
+            const res = await fetch(SUPABASE_URL + '/storage/v1/object/' + SUPABASE_GALLERY_BUCKET + '/' + btn.dataset.path.split('/').map(encodeURIComponent).join('/'), {
+              method:'DELETE',
+              headers:{'apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY}
+            });
+            if (!res.ok) throw new Error('Delete failed.');
+            await renderParentPhotos();
+          } catch(e) {
+            btn.disabled = false;
+            btn.textContent = '🗑 Delete';
+            alert('Could not delete that photo.');
+          }
+        });
+      });
+    }
   } catch(e) { gallery.innerHTML = '<div class="error" style="grid-column:1/-1;">Could not load the gallery.</div>'; }
 }
 const JSONBIN_MASTER_KEY = '$2a$10$CuR9F/hDrQ5I/2repYjK6eebHJ0J2QVsp2.4NKeWgTvOBIy3GYY1q';
