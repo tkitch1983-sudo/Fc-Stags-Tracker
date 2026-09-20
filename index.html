@@ -411,6 +411,11 @@
     <label>Man of the Match</label>
     <div class="row"><input id="motmInput" type="text" placeholder="e.g. Ollie"></div>
 
+    <label>Man of the Match Photo (optional)</label>
+    <div class="row"><input id="motmPhotoInput" type="file" accept="image/*"></div>
+    <div id="motmPhotoPreview" style="margin-top:8px;"></div>
+    <button id="removeMotmPhotoBtn" type="button" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);margin:8px 0 12px;">Remove MOTM Photo</button>
+
     <label>Match Write-Up (optional)</label>
     <div class="row"><textarea id="writeUpInput" rows="5" placeholder="Paste or type a match report..." style="width:100%;background:#0f1720;border:1px solid var(--border);border-radius:8px;padding:12px 10px;color:var(--text);font-size:16px;margin-top:4px;font-family:inherit;resize:vertical;"></textarea></div>
 
@@ -1648,6 +1653,45 @@ document.getElementById('savePlayerBtn').addEventListener('click', async () => {
   renderSquad();
 });
 
+let editingGameId = null;
+let editingMotmPhoto = '';
+
+function setMotmPhotoPreview(src) {
+  editingMotmPhoto = src || '';
+  const p = document.getElementById('motmPhotoPreview');
+  const r = document.getElementById('removeMotmPhotoBtn');
+  if (p) p.innerHTML = editingMotmPhoto ? '<img src="' + editingMotmPhoto + '" alt="MOTM photo" style="width:100%;max-height:300px;object-fit:cover;border-radius:12px;">' : '';
+  if (r) r.style.display = editingMotmPhoto ? 'block' : 'none';
+}
+
+function readResultPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader(), img = new Image();
+    reader.onload = () => { img.onload = () => {
+      const max = 420, scale = Math.min(1, max / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      resolve(canvas.toDataURL('image/jpeg',0.42));
+    }; img.src = reader.result; };
+    reader.onerror = reject; reader.readAsDataURL(file);
+  });
+}
+
+function clearResultForm() {
+  editingGameId = null;
+  document.getElementById('opponent').value = '';
+  document.getElementById('stagsScore').value = '';
+  document.getElementById('oppScore').value = '';
+  document.getElementById('gameDate').value = todayStr();
+  document.getElementById('scorersInput').value = '';
+  document.getElementById('motmInput').value = '';
+  document.getElementById('writeUpInput').value = '';
+  document.getElementById('motmPhotoInput').value = '';
+  setMotmPhotoPreview('');
+  document.getElementById('addBtn').textContent = 'Save Result';
+}
+
 function render() {
   const statsEl = document.getElementById('stats');
   const gamesEl = document.getElementById('gamesPane');
@@ -1695,6 +1739,9 @@ function render() {
       const motmLine = (g.motm && g.motm.trim())
         ? `<div class="scorers-list">🏅 MOTM: ${escapeHtml(g.motm.trim())}</div>`
         : '';
+      const motmPhotoBlock = g.motmPhoto
+        ? `<div style="margin-top:10px;"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;">🏅 Man of the Match</div><img src="${g.motmPhoto}" alt="Man of the Match" style="width:100%;max-height:360px;object-fit:cover;border-radius:12px;"></div>`
+        : '';
       const writeUpBlock = (g.writeUp && g.writeUp.trim())
         ? `<div class="writeup" data-id="${g.id}">
              <div class="writeup-text collapsed">${escapeHtml(g.writeUp.trim()).replace(/\n/g, '<br>')}</div>
@@ -1711,10 +1758,11 @@ function render() {
             </div>
             <div class="score">${g.stagsScore} - ${g.oppScore}</div>
             <span class="badge ${res}">${res}</span>
-            ${isAdmin ? `<button class="del" data-id="${g.id}">✕</button>` : ''}
+            ${isAdmin ? `<button class="edit-game" data-id="${g.id}" style="width:auto;padding:7px 10px;margin-left:6px;">✎ Edit</button><button class="del" data-id="${g.id}">✕</button>` : ''}
           </div>
           ${scorersLine}
           ${motmLine}
+          ${motmPhotoBlock}
           ${writeUpBlock}
         </div>
       `;
@@ -1724,6 +1772,23 @@ function render() {
         const textEl = btn.previousElementSibling;
         const collapsed = textEl.classList.toggle('collapsed');
         btn.textContent = collapsed ? 'Read more' : 'Show less';
+      });
+    });
+    gamesEl.querySelectorAll('.edit-game').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const g = games.find(x => String(x.id) === String(btn.dataset.id));
+        if (!g) return;
+        editingGameId = g.id;
+        document.getElementById('opponent').value = g.opponent || '';
+        document.getElementById('stagsScore').value = g.stagsScore;
+        document.getElementById('oppScore').value = g.oppScore;
+        document.getElementById('gameDate').value = g.date || todayStr();
+        document.getElementById('scorersInput').value = (g.scorers || []).join(', ');
+        document.getElementById('motmInput').value = g.motm || '';
+        document.getElementById('writeUpInput').value = g.writeUp || '';
+        setMotmPhotoPreview(g.motmPhoto || '');
+        document.getElementById('addBtn').textContent = 'Update Result';
+        setActiveTab('add');
       });
     });
     gamesEl.querySelectorAll('.del').forEach(btn => {
@@ -1774,6 +1839,18 @@ function render() {
   renderSquad();
 }
 
+document.getElementById('motmPhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { alert('Please choose an image file.'); return; }
+  try { setMotmPhotoPreview(await readResultPhoto(file)); }
+  catch (err) { alert('Could not read that photo.'); }
+});
+document.getElementById('removeMotmPhotoBtn').addEventListener('click', () => {
+  document.getElementById('motmPhotoInput').value = '';
+  setMotmPhotoPreview('');
+});
+
 document.getElementById('addBtn').addEventListener('click', async () => {
   const opponent = document.getElementById('opponent').value.trim();
   const stagsScore = document.getElementById('stagsScore').value;
@@ -1804,29 +1881,35 @@ document.getElementById('addBtn').addEventListener('click', async () => {
     }
   } catch (e) { /* fall back to local copy of games if refresh fails */ }
 
-  games.push({
-    id: Date.now().toString(),
+  const gameData = {
     opponent,
     stagsScore: parseInt(stagsScore,10),
     oppScore: parseInt(oppScore,10),
     date,
     scorers: scorerInputs,
     motm,
+    motmPhoto: editingMotmPhoto,
     writeUp
-  });
-  await save();
+  };
+  if (editingGameId) {
+    const idx = games.findIndex(g => String(g.id) === String(editingGameId));
+    if (idx !== -1) games[idx] = { ...games[idx], ...gameData };
+  } else {
+    games.push({ id: Date.now().toString(), ...gameData });
+  }
+  const saved = await save();
+  if (!saved) {
+    addBtn.disabled = false;
+    addBtn.textContent = editingGameId ? 'Update Result' : 'Save Result';
+    errEl.textContent = 'Could not save the result. If a photo is attached, try a smaller photo.';
+    return;
+  }
   render();
 
   addBtn.disabled = false;
-  addBtn.textContent = 'Save Result';
-
-  document.getElementById('opponent').value = '';
-  document.getElementById('stagsScore').value = '';
-  document.getElementById('oppScore').value = '';
-  document.getElementById('gameDate').value = todayStr();
-  document.getElementById('scorersInput').value = '';
-  document.getElementById('motmInput').value = '';
-  document.getElementById('writeUpInput').value = '';
+  const wasEditing = !!editingGameId;
+  clearResultForm();
+  if (wasEditing) setActiveTab('games');
 });
 
 updateAdminStatusUI();
