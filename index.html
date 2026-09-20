@@ -1268,11 +1268,11 @@ function readEventPhoto(file) {
     const img = new Image();
     const reader = new FileReader();
     reader.onload = () => { img.onload = () => {
-      const max = 640, scale = Math.min(1, max / Math.max(img.width, img.height));
+      const max = 420, scale = Math.min(1, max / Math.max(img.width, img.height));
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.58));
+      resolve(canvas.toDataURL('image/jpeg', 0.42));
     }; img.src = reader.result; };
     reader.onerror = reject; reader.readAsDataURL(file);
   });
@@ -1375,7 +1375,20 @@ document.getElementById('saveEventBtn').addEventListener('click', async () => {
   const time = document.getElementById('eventTimeInput').value;
   const location = document.getElementById('eventLocationInput').value.trim();
   const details = document.getElementById('eventDetailsInput').value.trim();
-  const photo = editingEventPhoto;
+  let photo = editingEventPhoto;
+  if (photo && photo.length > 180000) {
+    try {
+      const img = new Image();
+      await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = photo; });
+      const canvas = document.createElement('canvas');
+      const scale = Math.min(1, 360 / Math.max(img.width, img.height));
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      photo = canvas.toDataURL('image/jpeg', 0.35);
+      setEventPhotoPreview(photo);
+    } catch (e) { /* use the current compressed photo */ }
+  }
   const errEl = document.getElementById('eventErr');
   const btn = document.getElementById('saveEventBtn');
   errEl.textContent = '';
