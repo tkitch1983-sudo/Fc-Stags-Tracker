@@ -451,6 +451,11 @@
     <label>Details (optional)</label>
     <div class="row"><textarea id="eventDetailsInput" rows="4" placeholder="Any extra info..." style="width:100%;background:#0f1720;border:1px solid var(--border);border-radius:8px;padding:12px 10px;color:var(--text);font-size:16px;margin-top:4px;font-family:inherit;resize:vertical;"></textarea></div>
 
+    <label>Photo (optional)</label>
+    <div class="row"><input id="eventPhotoInput" type="file" accept="image/*"></div>
+    <div id="eventPhotoPreview" style="margin-top:8px;"></div>
+    <button id="removeEventPhotoBtn" type="button" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:8px;">Remove Photo</button>
+
     <button id="saveEventBtn">Save Event</button>
     <div class="error" id="eventErr"></div>
   </div>
@@ -1246,6 +1251,30 @@ document.getElementById('saveTableBtn').addEventListener('click', async () => {
 });
 
 let editingEventId = null;
+let editingEventPhoto = '';
+
+function setEventPhotoPreview(src) {
+  editingEventPhoto = src || '';
+  const preview = document.getElementById('eventPhotoPreview');
+  const removeBtn = document.getElementById('removeEventPhotoBtn');
+  if (preview) preview.innerHTML = editingEventPhoto ? '<img src="' + editingEventPhoto + '" alt="Event photo" style="width:100%;max-height:360px;object-fit:cover;border-radius:12px;">' : '';
+  if (removeBtn) removeBtn.style.display = editingEventPhoto ? 'block' : 'none';
+}
+
+function readEventPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => { img.onload = () => {
+      const max = 1200, scale = Math.min(1, max / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.78));
+    }; img.src = reader.result; };
+    reader.onerror = reject; reader.readAsDataURL(file);
+  });
+}
 
 function renderEvents() {
   const el = document.getElementById('eventsPane');
@@ -1299,6 +1328,7 @@ function renderEvents() {
       document.getElementById('eventTimeInput').value = ev.time || '';
       document.getElementById('eventLocationInput').value = ev.location || '';
       document.getElementById('eventDetailsInput').value = ev.details || '';
+      setEventPhotoPreview(ev.photo || '');
       setActiveTab('addEvent');
     });
   });
@@ -1319,8 +1349,22 @@ function clearEventForm() {
   document.getElementById('eventTimeInput').value = '';
   document.getElementById('eventLocationInput').value = '';
   document.getElementById('eventDetailsInput').value = '';
+  document.getElementById('eventPhotoInput').value = '';
+  setEventPhotoPreview('');
   document.getElementById('eventErr').textContent = '';
 }
+
+document.getElementById('eventPhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { alert('Please choose an image file.'); return; }
+  try { setEventPhotoPreview(await readEventPhoto(file)); }
+  catch (err) { alert('Could not read that photo. Please try another image.'); }
+});
+document.getElementById('removeEventPhotoBtn').addEventListener('click', () => {
+  document.getElementById('eventPhotoInput').value = '';
+  setEventPhotoPreview('');
+});
 
 document.getElementById('saveEventBtn').addEventListener('click', async () => {
   const title = document.getElementById('eventTitleInput').value.trim();
@@ -1328,6 +1372,7 @@ document.getElementById('saveEventBtn').addEventListener('click', async () => {
   const time = document.getElementById('eventTimeInput').value;
   const location = document.getElementById('eventLocationInput').value.trim();
   const details = document.getElementById('eventDetailsInput').value.trim();
+  const photo = editingEventPhoto;
   const errEl = document.getElementById('eventErr');
   const btn = document.getElementById('saveEventBtn');
   errEl.textContent = '';
@@ -1349,10 +1394,10 @@ document.getElementById('saveEventBtn').addEventListener('click', async () => {
   if (editingEventId) {
     const idx = events.findIndex(e => e.id === editingEventId);
     if (idx !== -1) {
-      events[idx] = { ...events[idx], title, date, time, location, details };
+      events[idx] = { ...events[idx], title, date, time, location, details, photo };
     }
   } else {
-    events.push({ id: Date.now().toString(), title, date, time, location, details });
+    events.push({ id: Date.now().toString(), title, date, time, location, details, photo });
   }
 
   await save();
