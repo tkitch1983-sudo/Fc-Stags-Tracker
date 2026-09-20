@@ -450,6 +450,7 @@
     <label>Photos</label>
     <div class="row"><input id="parentPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple></div>
     <button id="uploadParentPhotosBtn" type="button">Upload Photos</button>
+    <button id="sharePhotoGalleryWhatsAppBtn" type="button" style="margin-top:8px;background:#25D366;color:#102016;">💬 Share Photo Gallery on WhatsApp</button>
     <div class="error" id="parentPhotoErr"></div>
     <div id="parentPhotoStatus" class="sub" style="margin-top:8px;"></div>
   </div>
@@ -544,9 +545,15 @@ async function renderParentPhotos() {
       const objectName = x.name.startsWith('uploads/') ? x.name : ('uploads/' + x.name);
       const url = SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_GALLERY_BUCKET + '/' + objectName.split('/').map(encodeURIComponent).join('/');
       return '<div><a href="'+url+'" target="_blank" rel="noopener"><img src="'+url+'" alt="Team photo" loading="lazy" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;display:block;"></a>' +
+        '<button type="button" class="share-gallery-photo" data-url="'+escapeHtml(url)+'" style="margin-top:6px;background:#25D366;color:#102016;padding:8px 10px;">💬 Share</button>' +
         (isAdmin ? '<button type="button" class="delete-gallery-photo" data-path="'+escapeHtml(objectName)+'" style="margin-top:6px;background:transparent;border:1px solid var(--loss);color:var(--loss);padding:8px 10px;">🗑 Delete</button>' : '') +
         '</div>';
     }).join('') : '<div class="sub" style="grid-column:1/-1;">No photos yet — add the first ones above.</div>';
+    gallery.querySelectorAll('.share-gallery-photo').forEach(btn => {
+      btn.addEventListener('click', () => {
+        window.open('https://wa.me/?text=' + encodeURIComponent('📸 FC Hartlepool Stags U10 photo\n' + btn.dataset.url), '_blank');
+      });
+    });
     if (isAdmin) {
       gallery.querySelectorAll('.delete-gallery-photo').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -1287,9 +1294,19 @@ function renderTable() {
       </thead>
       <tbody>${rows}</tbody>
     </table>
-    <button id="editTableBtn" style="margin-top:16px;">Edit Table</button>
+    <button id="shareTableWhatsAppBtn" type="button" style="margin-top:16px;">💬 Share Table on WhatsApp</button>
+    ${isAdmin ? '<button id="editTableBtn" style="margin-top:8px;">Edit Table</button>' : ''}
   `;
-  document.getElementById('editTableBtn').addEventListener('click', () => setActiveTab('editTable'));
+  const editTableBtn = document.getElementById('editTableBtn');
+  if (editTableBtn) editTableBtn.addEventListener('click', () => setActiveTab('editTable'));
+  const shareTableBtn = document.getElementById('shareTableWhatsAppBtn');
+  if (shareTableBtn) shareTableBtn.addEventListener('click', () => {
+    const lines = ['⚽ FC Hartlepool Stags U10 — League Table', ''];
+    withStats.forEach((t, i) => lines.push((i + 1) + '. ' + t.team + ' — P' + (t.p||0) + ' GD ' + (t.gd >= 0 ? '+' : '') + t.gd + ' Pts ' + t.pts));
+    const url = new URL(location.href); url.search = ''; url.hash = '';
+    lines.push('', 'View the latest table:', url.toString());
+    window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+  });
 }
 
 function renderEditTableRows() {
@@ -1476,6 +1493,13 @@ document.getElementById('removeEventPhotoBtn').addEventListener('click', () => {
   document.getElementById('eventPhotoInput').value = '';
   pendingEventPhotoFile = null;
   setEventPhotoPreview('');
+});
+
+document.getElementById('sharePhotoGalleryWhatsAppBtn').addEventListener('click', () => {
+  const url = new URL(location.href);
+  url.search = '';
+  url.hash = 'photos';
+  window.open('https://wa.me/?text=' + encodeURIComponent('📸 FC Hartlepool Stags U10 Team Photos\nView the latest team photos here:\n' + url.toString()), '_blank');
 });
 
 document.getElementById('uploadParentPhotosBtn').addEventListener('click', async () => {
@@ -2058,7 +2082,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
 });
 
 updateAdminStatusUI();
-load().then(openAvailabilityFromLink);
+load().then(() => { openAvailabilityFromLink(); if (location.hash === '#photos') setActiveTab('photos'); });
 </script>
 
 </body>
