@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Restore Results</title><style>body{font-family:system-ui;background:#07111d;color:#fff;padding:24px}#status{max-width:600px;margin:auto;padding:18px;background:#0d1b2a;border:1px solid #28405b;border-radius:14px}iframe{width:1px;height:1px;opacity:0;position:absolute}</style></head><body><div id="status">Preparing result recovery…</div><iframe id="appFrame" src="/"></iframe><script>
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function ready(w){for(let i=0;i<100;i++){try{if(w.eval("typeof load==='function' && typeof save==='function' && typeof games!=='undefined'"))return true;}catch(e){}await wait(200);}return false;}
+async function restore(){const s=document.getElementById('status'),w=document.getElementById('appFrame').contentWindow;try{if(!(await ready(w)))throw new Error('App not ready');await w.eval(`(async()=>{await load();return true;})()`);const missing=[
+{id:'recovered-2026-09-13',opponent:'Billingham Juniors U10',stagsScore:5,oppScore:1,date:'2026-09-13',scorers:['Mozza','Olly','Olly','Mozza','Mozza','Mozza'],motm:'Freddie W',motmPhoto:'',writeUp:''},
+{id:'recovered-2026-09-20',opponent:'Stockton Town Reds',stagsScore:2,oppScore:0,date:'2026-09-20',scorers:['Lewis','Olly'],motm:'Kitch, Mozza',motmPhoto:'',writeUp:''}
+];const result=await w.eval(`(async()=>{const add=${JSON.stringify(missing)};for(const g of add){const idx=games.findIndex(x=>(x.date===g.date)||((x.opponent||'').toLowerCase()===(g.opponent||'').toLowerCase()));if(idx<0)games.push(g);}games.sort((a,b)=>(b.date||'').localeCompare(a.date||''));const ok=await save();render();return {ok,count:games.length};})()`);if(!result.ok)throw new Error('Save failed');s.textContent='Recovered result cards. Total results: '+result.count+' ✓';}catch(e){s.textContent='Recovery failed: '+e.message;}}
+if(new URLSearchParams(location.search).get('apply')==='1')setTimeout(restore,700);else restore();
+</script></body></html>
