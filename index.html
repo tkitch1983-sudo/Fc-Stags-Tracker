@@ -1294,7 +1294,7 @@ function renderEvents() {
       const isPast = ev.date && ev.date < today;
       const dateFmt = ev.date ? new Date(ev.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) : '';
       const adminControls = isAdmin
-        ? `<button class="del edit-event" data-id="${ev.id}" title="Edit">✎</button><button class="del del-event" data-id="${ev.id}" title="Delete">✕</button>`
+        ? `<button class="edit-event" data-id="${ev.id}" title="Edit post" style="width:auto;padding:8px 12px;margin-left:8px;">✎ Edit</button><button class="del del-event" data-id="${ev.id}" title="Delete">✕</button>`
         : '';
       return `
         <div class="game" style="${isPast ? 'opacity:0.5;' : ''}">
@@ -1332,6 +1332,7 @@ function renderEvents() {
       document.getElementById('eventLocationInput').value = ev.location || '';
       document.getElementById('eventDetailsInput').value = ev.details || '';
       setEventPhotoPreview(ev.photo || '');
+      document.getElementById('saveEventBtn').textContent = 'Update Post';
       setActiveTab('addEvent');
     });
   });
@@ -1354,6 +1355,8 @@ function clearEventForm() {
   document.getElementById('eventDetailsInput').value = '';
   document.getElementById('eventPhotoInput').value = '';
   setEventPhotoPreview('');
+  const saveEventBtn = document.getElementById('saveEventBtn');
+  if (saveEventBtn) saveEventBtn.textContent = 'Save Event';
   document.getElementById('eventErr').textContent = '';
 }
 
