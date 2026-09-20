@@ -1044,8 +1044,10 @@ async function save() {
     });
     if (!res.ok) throw new Error('bad status ' + res.status);
     document.getElementById('err').textContent = '';
+    return true;
   } catch (e) {
     document.getElementById('err').textContent = 'Could not save — check your connection and try again.';
+    return false;
   } finally {
     saving = false;
   }
@@ -1266,11 +1268,11 @@ function readEventPhoto(file) {
     const img = new Image();
     const reader = new FileReader();
     reader.onload = () => { img.onload = () => {
-      const max = 1200, scale = Math.min(1, max / Math.max(img.width, img.height));
+      const max = 640, scale = Math.min(1, max / Math.max(img.width, img.height));
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.78));
+      resolve(canvas.toDataURL('image/jpeg', 0.58));
     }; img.src = reader.result; };
     reader.onerror = reject; reader.readAsDataURL(file);
   });
@@ -1305,6 +1307,7 @@ function renderEvents() {
           </div>
           ${ev.location ? `<div class="venue-line">📍 ${escapeHtml(ev.location)}</div>` : ''}
           ${ev.details ? `<div class="scorers-list">${escapeHtml(ev.details).replace(/\n/g, '<br>')}</div>` : ''}
+          ${ev.photo ? `<img src="${ev.photo}" alt="Event photo" style="width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin-top:12px;">` : ''}
         </div>
       `;
     }).join('');
@@ -1400,11 +1403,15 @@ document.getElementById('saveEventBtn').addEventListener('click', async () => {
     events.push({ id: Date.now().toString(), title, date, time, location, details, photo });
   }
 
-  await save();
-  editingEventId = null;
-  clearEventForm();
+  const saved = await save();
   btn.disabled = false;
   btn.textContent = 'Save Event';
+  if (!saved) {
+    errEl.textContent = 'Could not publish the event. If it has a photo, try a smaller photo and save again.';
+    return;
+  }
+  editingEventId = null;
+  clearEventForm();
   setActiveTab('events');
   renderEvents();
 });
