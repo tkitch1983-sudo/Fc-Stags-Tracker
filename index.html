@@ -266,6 +266,10 @@
       <span class="hl-icon">🎉</span>
       <span class="hl-text">Events</span>
     </div>
+    <div class="home-link" data-goto="photos">
+      <span class="hl-icon">📸</span>
+      <span class="hl-text">Team Photos</span>
+    </div>
     <div class="home-link" data-goto="training">
       <span class="hl-icon">🏃</span>
       <span class="hl-text">Training</span>
@@ -439,6 +443,19 @@
 
 <div id="eventsPane" style="display:none;"></div>
 
+<div id="photosPane" style="display:none;">
+  <div class="add-form">
+    <div style="font-weight:700;font-size:18px;margin-bottom:4px;">📸 Team Photo Dump</div>
+    <div class="sub" style="margin-bottom:12px;">Parents can add match-day photos here. Select several photos at once.</div>
+    <label>Photos</label>
+    <div class="row"><input id="parentPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple></div>
+    <button id="uploadParentPhotosBtn" type="button">Upload Photos</button>
+    <div class="error" id="parentPhotoErr"></div>
+    <div id="parentPhotoStatus" class="sub" style="margin-top:8px;"></div>
+  </div>
+  <div id="parentPhotoGallery" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;"></div>
+</div>
+
 <div id="addEventPane" style="display:none;">
   <div class="add-form">
     <label>Event Title</label>
@@ -481,6 +498,7 @@ const JSONBLOB_URL = 'https://api.jsonbin.io/v3/b/6a9dad16da38895dfe409235';
 const SUPABASE_URL = 'https://xpfondrwxsydesskmaus.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwZm9uZHJ3eHN5ZGVzc2ttYXVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNTkwMDMsImV4cCI6MjEwNDYzNTAwM30.mL3AIY4zBr9nhrWPy_lRLk7Nkjjyv93JXW82hzUoeWM';
 const SUPABASE_PHOTO_BUCKET = 'stags-site-photos';
+const SUPABASE_GALLERY_BUCKET = 'stags-parent-gallery';
 
 async function uploadSitePhoto(file, folder) {
   if (!file) return '';
@@ -494,6 +512,39 @@ async function uploadSitePhoto(file, folder) {
   });
   if (!res.ok) throw new Error('Photo upload failed.');
   return SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_PHOTO_BUCKET + '/' + path;
+}
+
+async function uploadParentPhoto(file) {
+  if (!file) return;
+  if (file.size > 8 * 1024 * 1024) throw new Error((file.name || 'Photo') + ' is over 8 MB.');
+  const ext = ((file.name || '').split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+  const path = 'uploads/' + Date.now() + '-' + Math.random().toString(36).slice(2,10) + '.' + ext;
+  const res = await fetch(SUPABASE_URL + '/storage/v1/object/' + SUPABASE_GALLERY_BUCKET + '/' + path, {
+    method:'POST',
+    headers:{'apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY,'Content-Type':file.type || 'image/jpeg','x-upsert':'false'},
+    body:file
+  });
+  if (!res.ok) throw new Error('Could not upload ' + (file.name || 'photo') + '.');
+}
+
+async function renderParentPhotos() {
+  const gallery = document.getElementById('parentPhotoGallery');
+  if (!gallery) return;
+  gallery.innerHTML = '<div class="sub">Loading photos…</div>';
+  try {
+    const res = await fetch(SUPABASE_URL + '/storage/v1/object/list/' + SUPABASE_GALLERY_BUCKET, {
+      method:'POST',
+      headers:{'apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({prefix:'uploads',limit:200,offset:0,sortBy:{column:'created_at',order:'desc'}})
+    });
+    if (!res.ok) throw new Error('Could not load photos.');
+    const files = await res.json();
+    const imgs = files.filter(x => x && x.name && !x.name.endsWith('/'));
+    gallery.innerHTML = imgs.length ? imgs.map(x => {
+      const url = SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_GALLERY_BUCKET + '/uploads/' + encodeURIComponent(x.name);
+      return '<a href="'+url+'" target="_blank" rel="noopener"><img src="'+url+'" alt="Team photo" loading="lazy" style="width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;display:block;"></a>';
+    }).join('') : '<div class="sub" style="grid-column:1/-1;">No photos yet — add the first ones above.</div>';
+  } catch(e) { gallery.innerHTML = '<div class="error" style="grid-column:1/-1;">Could not load the gallery.</div>'; }
 }
 const JSONBIN_MASTER_KEY = '$2a$10$CuR9F/hDrQ5I/2repYjK6eebHJ0J2QVsp2.4NKeWgTvOBIy3GYY1q';
 const ADMIN_PASSWORD = 'stags';
@@ -907,6 +958,8 @@ function setActiveTab(tabName) {
   document.getElementById('tablePane').style.display = tabName === 'table' ? 'block' : 'none';
   document.getElementById('editTablePane').style.display = tabName === 'editTable' ? 'block' : 'none';
   document.getElementById('eventsPane').style.display = tabName === 'events' ? 'block' : 'none';
+  document.getElementById('photosPane').style.display = tabName === 'photos' ? 'block' : 'none';
+  if (tabName === 'photos') renderParentPhotos();
   document.getElementById('addEventPane').style.display = tabName === 'addEvent' ? 'block' : 'none';
   document.getElementById('adminLoginPane').style.display = tabName === 'adminLogin' ? 'block' : 'none';
   if (tabName === 'games' || tabName === 'scorers' || tabName === 'table' || tabName === 'events' || tabName === 'fixtures' || tabName === 'training' || tabName === 'squad') {
@@ -1399,6 +1452,32 @@ document.getElementById('removeEventPhotoBtn').addEventListener('click', () => {
   document.getElementById('eventPhotoInput').value = '';
   pendingEventPhotoFile = null;
   setEventPhotoPreview('');
+});
+
+document.getElementById('uploadParentPhotosBtn').addEventListener('click', async () => {
+  const input = document.getElementById('parentPhotoInput');
+  const files = Array.from(input.files || []);
+  const err = document.getElementById('parentPhotoErr');
+  const status = document.getElementById('parentPhotoStatus');
+  const btn = document.getElementById('uploadParentPhotosBtn');
+  err.textContent = '';
+  if (!files.length) { err.textContent = 'Choose one or more photos first.'; return; }
+  if (files.length > 20) { err.textContent = 'Please upload up to 20 photos at a time.'; return; }
+  btn.disabled = true;
+  let done = 0;
+  try {
+    for (const file of files) {
+      status.textContent = 'Uploading ' + (done + 1) + ' of ' + files.length + '…';
+      await uploadParentPhoto(file);
+      done++;
+    }
+    input.value = '';
+    status.textContent = done + ' photo' + (done === 1 ? '' : 's') + ' uploaded ✓';
+    await renderParentPhotos();
+  } catch(e) {
+    err.textContent = e.message || 'Upload failed.';
+    status.textContent = done ? done + ' uploaded before the error.' : '';
+  } finally { btn.disabled = false; }
 });
 
 document.getElementById('saveEventBtn').addEventListener('click', async () => {
