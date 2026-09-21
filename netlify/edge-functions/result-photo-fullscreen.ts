@@ -206,6 +206,27 @@ export default async (req: Request, context: any) => {
     } catch (e) { /* keep current shared data if recovery fails */ }
   };
   setTimeout(restoreEventsAndSquad, 4200);
+
+  const addSuperSundayFixture = async () => {
+    try {
+      if (typeof refreshFromBlob !== 'function' || typeof save !== 'function' || typeof fixtures === 'undefined') return;
+      await refreshFromBlob();
+      if (!Array.isArray(fixtures)) return;
+      const alreadyThere = fixtures.some((f) => String(f.id || '') === 'tournament-2026-09-27-super-sunday' || (String(f.date || '') === '2026-09-27' && /super sunday autumn series/i.test(String(f.opponent || ''))));
+      if (alreadyThere) return;
+      fixtures.push({
+        id: 'tournament-2026-09-27-super-sunday',
+        opponent: 'Super Sunday Autumn Series (U11 Mid Level, 7v7)',
+        isHome: false,
+        date: '2026-09-27',
+        time: '14:00',
+        venue: 'Downhill Hubsite, Sunderland, SR5 4BB'
+      });
+      const ok = await save();
+      if (ok !== false && typeof renderFixtures === 'function') renderFixtures();
+    } catch (e) { /* leave current fixtures untouched if add fails */ }
+  };
+  setTimeout(addSuperSundayFixture, 5200);
 })();
 </script>`;
 
