@@ -134,6 +134,78 @@ export default async (req: Request, context: any) => {
     } catch (e) { /* never disturb results if recovery fails */ }
   };
   setTimeout(restoreMissingMotmPhotos, 2200);
+
+  const restoreEventsAndSquad = async () => {
+    try {
+      if (typeof refreshFromBlob !== 'function' || typeof save !== 'function' || typeof events === 'undefined' || typeof squad === 'undefined') return;
+      await refreshFromBlob();
+      const eventsNeedRestore = !Array.isArray(events) || events.length === 0;
+      const squadNeedsRestore = Array.isArray(squad) && squad.length > 0 && squad.some((p) => {
+        const n = p && (p.number ?? p.no ?? p.shirtNumber ?? p.squadNumber);
+        return n === undefined || n === null || String(n).trim() === '';
+      });
+      if (!eventsNeedRestore && !squadNeedsRestore) return;
+
+      const countRes = await fetch(JSONBLOB_URL + '/versions/count', { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
+      if (!countRes.ok) return;
+      const countData = await countRes.json();
+      const versionCount = Number(countData && countData.metadata && countData.metadata.versionCount) || 0;
+      const oldest = Math.max(1, versionCount - 99);
+      let recoveredEvents = null;
+      let recoveredSquad = null;
+
+      const numberOf = (p) => p && (p.number ?? p.no ?? p.shirtNumber ?? p.squadNumber);
+      const keyOf = (p) => String((p && (p.id ?? p.name ?? p.player ?? p.playerName)) || '').trim().toLowerCase();
+
+      for (let v = versionCount; v >= oldest && ((!recoveredEvents && eventsNeedRestore) || (!recoveredSquad && squadNeedsRestore)); v--) {
+        try {
+          const vr = await fetch(JSONBLOB_URL + '/' + v, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY } });
+          if (!vr.ok) continue;
+          const vd = await vr.json();
+          const rec = vd && vd.record ? vd.record : {};
+          if (eventsNeedRestore && !recoveredEvents && Array.isArray(rec.events) && rec.events.length) {
+            recoveredEvents = rec.events;
+          }
+          if (squadNeedsRestore && !recoveredSquad && Array.isArray(rec.squad) && rec.squad.length) {
+            const numbered = rec.squad.filter((p) => {
+              const n = numberOf(p);
+              return n !== undefined && n !== null && String(n).trim() !== '';
+            });
+            if (numbered.length) recoveredSquad = rec.squad;
+          }
+        } catch (e) { /* try older version */ }
+      }
+
+      let changed = false;
+      if (eventsNeedRestore && recoveredEvents) {
+        events = recoveredEvents.map((e) => ({ ...e }));
+        changed = true;
+      }
+      if (squadNeedsRestore && recoveredSquad) {
+        const oldByKey = new Map(recoveredSquad.map((p) => [keyOf(p), p]));
+        squad = squad.map((p) => {
+          const old = oldByKey.get(keyOf(p));
+          if (!old) return p;
+          const currentNum = numberOf(p);
+          if (currentNum !== undefined && currentNum !== null && String(currentNum).trim() !== '') return p;
+          const oldNum = numberOf(old);
+          if (oldNum === undefined || oldNum === null || String(oldNum).trim() === '') return p;
+          const copy = { ...p };
+          if ('number' in old) copy.number = old.number;
+          else if ('no' in old) copy.no = old.no;
+          else if ('shirtNumber' in old) copy.shirtNumber = old.shirtNumber;
+          else if ('squadNumber' in old) copy.squadNumber = old.squadNumber;
+          return copy;
+        });
+        changed = true;
+      }
+      if (changed) {
+        const ok = await save();
+        if (ok !== false && typeof render === 'function') render();
+      }
+    } catch (e) { /* keep current shared data if recovery fails */ }
+  };
+  setTimeout(restoreEventsAndSquad, 4200);
 })();
 </script>`;
 
