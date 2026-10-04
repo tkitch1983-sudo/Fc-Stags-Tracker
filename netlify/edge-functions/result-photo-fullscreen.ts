@@ -47,16 +47,16 @@ export default async (req: Request, context: any) => {
   new MutationObserver(makeTappable).observe(document.body, { childList: true, subtree: true });
 
   const desiredStandings = [
-    { team: 'Hartlepool Stags', p: 3, w: 3, d: 0, l: 0, f: 14, a: 1 },
-    { team: 'Nunthorpe', p: 3, w: 3, d: 0, l: 0, f: 21, a: 12 },
-    { team: 'Guisborough Town', p: 3, w: 2, d: 0, l: 1, f: 13, a: 9 },
-    { team: 'Middleton Rangers', p: 3, w: 2, d: 0, l: 1, f: 8, a: 5 },
-    { team: 'Kader', p: 3, w: 1, d: 1, l: 1, f: 10, a: 6 },
-    { team: 'Stockton Town', p: 3, w: 1, d: 1, l: 1, f: 9, a: 5 },
-    { team: 'Redcar Town', p: 3, w: 1, d: 1, l: 1, f: 10, a: 9 },
-    { team: 'Northallerton Blacks', p: 3, w: 0, d: 1, l: 2, f: 5, a: 17 },
-    { team: 'Billingham', p: 3, w: 0, d: 0, l: 3, f: 3, a: 14 },
-    { team: 'Ferryhill', p: 3, w: 0, d: 0, l: 3, f: 2, a: 17 }
+    { team: 'Nunthorpe', p: 5, w: 4, d: 1, l: 0, f: 28, a: 14 },
+    { team: 'Guisborough Town', p: 5, w: 3, d: 1, l: 1, f: 21, a: 13 },
+    { team: 'Middleton Rangers', p: 5, w: 3, d: 1, l: 1, f: 13, a: 7 },
+    { team: 'Hartlepool Stags', p: 4, w: 3, d: 0, l: 1, f: 14, a: 5 },
+    { team: 'Redcar Town', p: 5, w: 2, d: 1, l: 2, f: 16, a: 18 },
+    { team: 'Stockton Town', p: 5, w: 1, d: 3, l: 1, f: 14, a: 10 },
+    { team: 'Billingham', p: 5, w: 2, d: 0, l: 3, f: 13, a: 19 },
+    { team: 'Kader', p: 4, w: 1, d: 2, l: 1, f: 11, a: 7 },
+    { team: 'Northallerton Blacks', p: 5, w: 0, d: 1, l: 4, f: 8, a: 24 },
+    { team: 'Ferryhill', p: 5, w: 0, d: 0, l: 5, f: 5, a: 26 }
   ];
 
   const syncLatestLeagueTable = async () => {
@@ -65,7 +65,7 @@ export default async (req: Request, context: any) => {
       await refreshFromBlob();
       if (!Array.isArray(standings) || standings.length === 0) return;
       const maxPlayed = Math.max(...standings.map((t) => Number(t.p) || 0));
-      if (maxPlayed > 3) return;
+      if (maxPlayed > 5) return;
       const norm = (arr) => JSON.stringify(arr.map((t) => [t.team, Number(t.p)||0, Number(t.w)||0, Number(t.d)||0, Number(t.l)||0, Number(t.f)||0, Number(t.a)||0]));
       if (norm(standings) === norm(desiredStandings)) return;
       standings = desiredStandings.map((t) => ({ ...t }));
