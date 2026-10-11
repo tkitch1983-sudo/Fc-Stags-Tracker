@@ -1121,22 +1121,8 @@ async function load() {
     return;
   }
 
-  let needsSave = false;
-  if (games.length === 0) {
-    games = [SEED_GAME];
-    needsSave = true;
-  }
-  if (standings.length === 0) {
-    standings = SEED_STANDINGS;
-    needsSave = true;
-  }
-  if (fixtures.length === 0) {
-    fixtures = SEED_FIXTURES;
-    needsSave = true;
-  }
-  if (needsSave) {
-    await save();
-  }
+  // Never automatically overwrite shared storage with seed data.
+  // Empty collections may reflect a failed or incomplete earlier save.
   render();
 }
 
