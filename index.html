@@ -1615,7 +1615,13 @@ document.getElementById('saveFixtureBtn').addEventListener('click', async () => 
     fixtures.push({ id: Date.now().toString(), opponent, date, time, venue, isHome });
   }
 
-  await save();
+  const saved = await save();
+  if (!saved) {
+    btn.disabled = false;
+    btn.textContent = 'Save Fixture';
+    errEl.textContent = 'Fixture could not be saved. Please try again; your details are still here.';
+    return;
+  }
   editingFixtureId = null;
   clearFixtureForm();
   btn.disabled = false;
