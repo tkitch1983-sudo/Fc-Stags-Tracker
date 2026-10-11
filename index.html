@@ -1989,23 +1989,35 @@ function setMotmPhotoPreview(src) {
 
 function readResultPhoto(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader(), img = new Image();
-    reader.onload = () => { img.onload = () => {
-      // Keep MOTM photos deliberately small because they are stored with the shared team JSON.
-      const max = 300, scale = Math.min(1, max / Math.max(img.width, img.height));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(img.width * scale));
-      canvas.height = Math.max(1, Math.round(img.height * scale));
-      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-      let quality = 0.32;
-      let data = canvas.toDataURL('image/jpeg', quality);
-      while (data.length > 90000 && quality > 0.14) {
-        quality -= 0.04;
-        data = canvas.toDataURL('image/jpeg', quality);
-      }
-      resolve(data);
-    }; img.onerror = reject; img.src = reader.result; };
-    reader.onerror = reject; reader.readAsDataURL(file);
+    const reader = new FileReader();
+    const img = new Image();
+    reader.onerror = () => reject(new Error('Could not read photo.'));
+    reader.onload = () => {
+      img.onerror = () => reject(new Error('Could not decode photo.'));
+      img.onload = () => {
+        try {
+          // Higher-quality emergency fallback while keeping shared JSON small.
+          // Prefer the original Supabase upload whenever storage is available.
+          const limit = 115000;
+          let best = '';
+          for (const max of [900, 750, 600, 480, 360]) {
+            const scale = Math.min(1, max / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(img.width * scale));
+            canvas.height = Math.max(1, Math.round(img.height * scale));
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            for (const quality of [0.82, 0.72, 0.62, 0.5, 0.38]) {
+              const data = canvas.toDataURL('image/jpeg', quality);
+              if (data.length <= limit) { resolve(data); return; }
+              if (!best || data.length < best.length) best = data;
+            }
+          }
+          reject(new Error('Photo too detailed for offline storage; try a smaller JPG.'));
+        } catch (e) { reject(e); }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
   });
 }
 
@@ -2216,7 +2228,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
       // record instead, so a storage outage does not block match updates.
       try {
         const compressed = await readResultPhoto(pendingMotmPhotoFile);
-        if (!compressed || compressed.length > 95000) throw new Error('Compressed image too large');
+        if (!compressed || compressed.length > 115000) throw new Error('Compressed image too large');
         editingMotmPhoto = compressed;
         setMotmPhotoPreview(compressed);
         pendingMotmPhotoFile = null;
