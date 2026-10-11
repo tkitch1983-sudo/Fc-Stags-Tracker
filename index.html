@@ -1157,8 +1157,15 @@ async function load() {
     return;
   }
 
-  // Never automatically overwrite shared storage with seed data.
-  // Empty collections may reflect a failed or incomplete earlier save.
+  // Only bring an older published league table up to the official 11 October
+  // standings. Save ONLY standings, preserving every other shared collection.
+  const official = typeof OFFICIAL_STANDINGS_2026_10_11 !== 'undefined' ? OFFICIAL_STANDINGS_2026_10_11 : null;
+  const stags = standings.find(t => /hartlepool stags/i.test(t.team || ''));
+  if (official && stags && Number(stags.p) < 5 && Number(stags.p) >= 3) {
+    const previous = standings;
+    standings = official.map(t => ({ ...t }));
+    if (!await save(['standings'])) standings = previous;
+  }
   render();
 }
 
@@ -2205,10 +2212,21 @@ document.getElementById('addBtn').addEventListener('click', async () => {
       setMotmPhotoPreview(editingMotmPhoto);
       pendingMotmPhotoFile = null;
     } catch (e) {
-      errEl.textContent = e.message || 'Could not upload MOTM photo.';
-      addBtn.disabled = false;
-      addBtn.textContent = editingGameId ? 'Update Result' : 'Save Result';
-      return;
+      // Storage may be unavailable. Keep a small compressed photo in the result
+      // record instead, so a storage outage does not block match updates.
+      try {
+        const compressed = await readResultPhoto(pendingMotmPhotoFile);
+        if (!compressed || compressed.length > 95000) throw new Error('Compressed image too large');
+        editingMotmPhoto = compressed;
+        setMotmPhotoPreview(compressed);
+        pendingMotmPhotoFile = null;
+        errEl.textContent = 'Photo storage is unavailable; saving a smaller photo with this result instead.';
+      } catch (fallbackError) {
+        errEl.textContent = (e.message || 'Photo upload failed') + '. Try a smaller JPG photo.';
+        addBtn.disabled = false;
+        addBtn.textContent = editingGameId ? 'Update Result' : 'Save Result';
+        return;
+      }
     }
   }
 
