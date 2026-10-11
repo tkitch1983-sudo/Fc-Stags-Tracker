@@ -1396,6 +1396,127 @@ document.getElementById('addTeamBtn').addEventListener('click', () => {
   renderEditTableRows();
 });
 
+const OFFICIAL_STANDINGS_2026_10_11 = [
+  {
+    "team": "Nunthorpe",
+    "p": 6,
+    "w": 5,
+    "d": 1,
+    "l": 0,
+    "f": 33,
+    "a": 15
+  },
+  {
+    "team": "Guisborough Town",
+    "p": 6,
+    "w": 4,
+    "d": 1,
+    "l": 1,
+    "f": 24,
+    "a": 13
+  },
+  {
+    "team": "Middleton Rangers",
+    "p": 6,
+    "w": 4,
+    "d": 1,
+    "l": 1,
+    "f": 16,
+    "a": 9
+  },
+  {
+    "team": "Hartlepool Stags",
+    "p": 5,
+    "w": 4,
+    "d": 0,
+    "l": 1,
+    "f": 20,
+    "a": 5
+  },
+  {
+    "team": "Kader",
+    "p": 5,
+    "w": 2,
+    "d": 2,
+    "l": 1,
+    "f": 20,
+    "a": 8
+  },
+  {
+    "team": "Redcar Town",
+    "p": 6,
+    "w": 2,
+    "d": 1,
+    "l": 3,
+    "f": 16,
+    "a": 24
+  },
+  {
+    "team": "Stockton Town",
+    "p": 6,
+    "w": 1,
+    "d": 3,
+    "l": 2,
+    "f": 16,
+    "a": 13
+  },
+  {
+    "team": "Billingham",
+    "p": 6,
+    "w": 2,
+    "d": 0,
+    "l": 4,
+    "f": 14,
+    "a": 24
+  },
+  {
+    "team": "Northallerton Blacks",
+    "p": 6,
+    "w": 0,
+    "d": 1,
+    "l": 5,
+    "f": 9,
+    "a": 33
+  },
+  {
+    "team": "Ferryhill",
+    "p": 6,
+    "w": 0,
+    "d": 0,
+    "l": 6,
+    "f": 5,
+    "a": 29
+  }
+];
+function addOfficialTableUpdateButton() {
+  const pane = document.getElementById('editTablePane');
+  if (!pane || !isAdmin || document.getElementById('applyOfficialTableBtn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'applyOfficialTableBtn';
+  btn.type = 'button';
+  btn.textContent = 'Apply official table — 11 Oct 2026';
+  btn.style.cssText = 'margin-top:12px;background:#145a7a;color:white;';
+  btn.addEventListener('click', async () => {
+    if (!confirm('Replace only the league standings with the official 11 October table? Other club data will be preserved.')) return;
+    btn.disabled = true;
+    btn.textContent = 'Saving official table…';
+    const previous = standings;
+    standings = OFFICIAL_STANDINGS_2026_10_11.map(t => ({ ...t }));
+    const ok = await save(['standings']);
+    if (!ok) {
+      standings = previous;
+      document.getElementById('tableErr').textContent = document.getElementById('err').textContent || 'Could not save table.';
+      btn.disabled = false;
+      btn.textContent = 'Apply official table — 11 Oct 2026';
+      return;
+    }
+    render();
+    setActiveTab('table');
+  });
+  pane.querySelector('.add-form').appendChild(btn);
+}
+addOfficialTableUpdateButton();
+
 document.getElementById('saveTableBtn').addEventListener('click', async () => {
   const btn = document.getElementById('saveTableBtn');
   const errEl = document.getElementById('tableErr');
