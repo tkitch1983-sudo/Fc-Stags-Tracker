@@ -416,7 +416,10 @@
     <div class="row"><input id="motmInput" type="text" placeholder="e.g. Ollie"></div>
 
     <label>Man of the Match Photo (optional)</label>
-    <div class="row"><input id="motmPhotoInput" type="file" accept="image/*"></div>
+    <div class="row" style="display:block;">
+      <label for="motmPhotoInput" style="display:block;background:#f5a900;color:#14202c;text-align:center;font-weight:700;padding:14px;border-radius:10px;cursor:pointer;">📷 Choose MOTM Photo</label>
+      <input id="motmPhotoInput" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" style="display:block;width:100%;margin-top:10px;font-size:16px;min-height:44px;">
+    </div>
     <div id="motmPhotoPreview" style="margin-top:8px;"></div>
     <button id="removeMotmPhotoBtn" type="button" style="display:none;background:transparent;border:1px solid var(--border);color:var(--muted);margin:8px 0 12px;">Remove MOTM Photo</button>
 
@@ -1490,7 +1493,7 @@ const OFFICIAL_STANDINGS_2026_10_11 = [
 ];
 function addOfficialTableUpdateButton() {
   const pane = document.getElementById('editTablePane');
-  if (!pane || !isAdmin || document.getElementById('applyOfficialTableBtn')) return;
+  if (!pane || document.getElementById('applyOfficialTableBtn')) return;
   const btn = document.createElement('button');
   btn.id = 'applyOfficialTableBtn';
   btn.type = 'button';
