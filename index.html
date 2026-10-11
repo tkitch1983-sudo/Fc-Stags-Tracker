@@ -1134,11 +1134,15 @@ async function save() {
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY },
       body: JSON.stringify({ games, standings, events, attendance, fixtures, squad, extraTraining, cancelledTrainingDates, trainingSettings })
     });
-    if (!res.ok) throw new Error('bad status ' + res.status);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error('Database rejected save (HTTP ' + res.status + ')' + (detail ? ': ' + detail.slice(0, 180) : ''));
+    }
     document.getElementById('err').textContent = '';
     return true;
   } catch (e) {
-    document.getElementById('err').textContent = 'Could not save — check your connection and try again.';
+    const message = e && e.message ? e.message : 'Unknown error';
+    document.getElementById('err').textContent = 'Save failed: ' + message;
     return false;
   } finally {
     saving = false;
@@ -1605,7 +1609,7 @@ document.getElementById('saveFixtureBtn').addEventListener('click', async () => 
   if (!saved) {
     btn.disabled = false;
     btn.textContent = 'Save Fixture';
-    errEl.textContent = 'Fixture could not be saved. Please try again; your details are still here.';
+    errEl.textContent = document.getElementById('err').textContent || 'Fixture could not be saved. Your details are still here.';
     return;
   }
   editingFixtureId = null;
@@ -2062,7 +2066,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   if (!saved) {
     addBtn.disabled = false;
     addBtn.textContent = editingGameId ? 'Update Result' : 'Save Result';
-    errEl.textContent = 'Could not save the result. If a photo is attached, try a smaller photo.';
+    errEl.textContent = document.getElementById('err').textContent || 'Could not save the result.';
     return;
   }
   render();
