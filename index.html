@@ -1126,13 +1126,32 @@ async function load() {
   render();
 }
 
-async function save() {
+async function save(changedFields) {
+  if (saving) {
+    document.getElementById('err').textContent = 'Another save is in progress. Please try again.';
+    return false;
+  }
   saving = true;
   try {
+    // Read the latest shared record first; never overwrite data after a failed read.
+    const current = await fetch(JSONBLOB_URL, { headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }, cache: 'no-store' });
+    if (!current.ok) throw new Error('Could not read existing club data (HTTP ' + current.status + '). Nothing was overwritten.');
+    const payload = await current.json();
+    if (!payload || !payload.record || typeof payload.record !== 'object' || Array.isArray(payload.record)) {
+      throw new Error('Club data was not valid. Nothing was overwritten.');
+    }
+    const latest = payload.record;
+    const local = { games, standings, events, attendance, fixtures, squad, extraTraining, cancelledTrainingDates, trainingSettings };
+    const fields = Array.isArray(changedFields) && changedFields.length ? changedFields : Object.keys(local);
+    const merged = { ...latest };
+    for (const field of fields) {
+      if (!Object.prototype.hasOwnProperty.call(local, field)) throw new Error('Unknown data field: ' + field);
+      merged[field] = local[field];
+    }
     const res = await fetch(JSONBLOB_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_MASTER_KEY },
-      body: JSON.stringify({ games, standings, events, attendance, fixtures, squad, extraTraining, cancelledTrainingDates, trainingSettings })
+      body: JSON.stringify(merged)
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
@@ -1141,8 +1160,7 @@ async function save() {
     document.getElementById('err').textContent = '';
     return true;
   } catch (e) {
-    const message = e && e.message ? e.message : 'Unknown error';
-    document.getElementById('err').textContent = 'Save failed: ' + message;
+    document.getElementById('err').textContent = 'Save failed: ' + (e && e.message ? e.message : 'Network error');
     return false;
   } finally {
     saving = false;
@@ -1605,7 +1623,7 @@ document.getElementById('saveFixtureBtn').addEventListener('click', async () => 
     fixtures.push({ id: Date.now().toString(), opponent, date, time, venue, isHome });
   }
 
-  const saved = await save();
+  const saved = await save(['fixtures']);
   if (!saved) {
     btn.disabled = false;
     btn.textContent = 'Save Fixture';
@@ -2062,7 +2080,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   } else {
     games.push({ id: Date.now().toString(), ...gameData });
   }
-  const saved = await save();
+  const saved = await save(['games']);
   if (!saved) {
     addBtn.disabled = false;
     addBtn.textContent = editingGameId ? 'Update Result' : 'Save Result';
