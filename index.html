@@ -504,14 +504,47 @@ const SUPABASE_GALLERY_BUCKET = 'stags-parent-gallery';
 async function uploadSitePhoto(file, folder) {
   if (!file) return '';
   if (file.size > 8 * 1024 * 1024) throw new Error('Photo must be under 8 MB.');
-  const ext = ((file.name || '').split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+  // Resize large phone images before upload; never put image bytes in the match database.
+  let upload = file;
+  let ext = ((file.name || '').split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+  if (file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp') {
+    try {
+      const url = URL.createObjectURL(file);
+      try {
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = () => reject(new Error('Could not read the selected image.'));
+          img.src = url;
+        });
+        const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.78));
+        if (blob && blob.size > 0 && blob.size < file.size) {
+          upload = blob;
+          ext = 'jpg';
+        }
+      } finally { URL.revokeObjectURL(url); }
+    } catch (e) { /* Use the original image if the browser cannot resize it. */ }
+  }
   const path = folder + '/' + Date.now() + '-' + Math.random().toString(36).slice(2,10) + '.' + ext;
-  const res = await fetch(SUPABASE_URL + '/storage/v1/object/' + SUPABASE_PHOTO_BUCKET + '/' + path, {
-    method: 'POST',
-    headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': file.type || 'image/jpeg', 'x-upsert': 'false' },
-    body: file
-  });
-  if (!res.ok) throw new Error('Photo upload failed.');
+  let res;
+  try {
+    res = await fetch(SUPABASE_URL + '/storage/v1/object/' + SUPABASE_PHOTO_BUCKET + '/' + path, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY, 'Content-Type': upload === file ? (file.type || 'image/jpeg') : 'image/jpeg', 'x-upsert': 'false' },
+      body: upload
+    });
+  } catch (e) {
+    throw new Error('Photo upload connection failed. Your match details are still here. ' + (e && e.message ? e.message : ''));
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error('Photo upload rejected (HTTP ' + res.status + ')' + (detail ? ': ' + detail.slice(0, 140) : ''));
+  }
   return SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_PHOTO_BUCKET + '/' + path;
 }
 
@@ -2040,6 +2073,8 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   const motm = document.getElementById('motmInput').value.trim();
   const writeUp = document.getElementById('writeUpInput').value.trim();
 
+  addBtn.disabled = true;
+  addBtn.textContent = 'Saving…';
   if (pendingMotmPhotoFile) {
     try {
       editingMotmPhoto = await uploadSitePhoto(pendingMotmPhotoFile, 'motm');
@@ -2047,6 +2082,8 @@ document.getElementById('addBtn').addEventListener('click', async () => {
       pendingMotmPhotoFile = null;
     } catch (e) {
       errEl.textContent = e.message || 'Could not upload MOTM photo.';
+      addBtn.disabled = false;
+      addBtn.textContent = editingGameId ? 'Update Result' : 'Save Result';
       return;
     }
   }
