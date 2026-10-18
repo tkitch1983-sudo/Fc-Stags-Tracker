@@ -2052,7 +2052,10 @@ function render() {
     else d++;
     (g.scorers || []).forEach(name => {
       const rawName = name.trim();
-      const key = rawName.toLowerCase() === 'freddie m' || rawName.toLowerCase() === 'mozza' ? 'Mozza' : rawName;
+      const lowerName = rawName.toLowerCase();
+      const key = lowerName === 'freddie m' || lowerName === 'mozza' ? 'Mozza'
+        : lowerName === 'olly' || lowerName === 'kitch' ? 'Kitch'
+        : rawName;
       if (!key) return;
       scorerTotals[key] = (scorerTotals[key] || 0) + 1;
     });
