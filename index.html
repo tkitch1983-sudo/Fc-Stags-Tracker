@@ -2051,7 +2051,8 @@ function render() {
     else if (g.stagsScore < g.oppScore) l++;
     else d++;
     (g.scorers || []).forEach(name => {
-      const key = name.trim();
+      const rawName = name.trim();
+      const key = rawName.toLowerCase() === 'freddie m' || rawName.toLowerCase() === 'mozza' ? 'Mozza' : rawName;
       if (!key) return;
       scorerTotals[key] = (scorerTotals[key] || 0) + 1;
     });
