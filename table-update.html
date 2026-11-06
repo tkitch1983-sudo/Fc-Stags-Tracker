@@ -11,7 +11,7 @@
 <body>
 <div class="wrap">
   <h1>Update Full League Table</h1>
-  <div class="sub">Matchday 3 table is filled in below.</div>
+  <div class="sub">Purple League U10 2026/27 — standings supplied 2 November 2026.</div>
   <div class="card">
     <table>
       <thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>F</th><th>A</th></tr></thead>
@@ -24,16 +24,16 @@
 <iframe id="appFrame" src="/"></iframe>
 <script>
 const initial = [
-  {team:'Hartlepool Stags',p:3,w:3,d:0,l:0,f:14,a:1},
-  {team:'Nunthorpe',p:3,w:3,d:0,l:0,f:21,a:12},
-  {team:'Guisborough Town',p:3,w:2,d:0,l:1,f:13,a:9},
-  {team:'Middleton Rangers',p:3,w:2,d:0,l:1,f:8,a:5},
-  {team:'Kader',p:3,w:1,d:1,l:1,f:10,a:6},
-  {team:'Stockton Town',p:3,w:1,d:1,l:1,f:9,a:5},
-  {team:'Redcar Town',p:3,w:1,d:1,l:1,f:10,a:9},
-  {team:'Northallerton Blacks',p:3,w:0,d:1,l:2,f:5,a:17},
-  {team:'Billingham',p:3,w:0,d:0,l:3,f:3,a:14},
-  {team:'Ferryhill',p:3,w:0,d:0,l:3,f:2,a:17}
+  {"team":"Nunthorpe","p":7,"w":5,"d":1,"l":1,"f":34,"a":17},
+  {"team":"Guisborough Town","p":7,"w":5,"d":1,"l":1,"f":27,"a":14},
+  {"team":"Hartlepool Stags","p":6,"w":5,"d":0,"l":1,"f":22,"a":6},
+  {"team":"Middleton Rangers","p":7,"w":4,"d":1,"l":2,"f":17,"a":17},
+  {"team":"Kader","p":6,"w":3,"d":2,"l":1,"f":28,"a":9},
+  {"team":"Stockton Town","p":7,"w":2,"d":3,"l":2,"f":21,"a":15},
+  {"team":"Redcar Town","p":7,"w":2,"d":1,"l":4,"f":17,"a":27},
+  {"team":"Billingham","p":7,"w":2,"d":0,"l":5,"f":16,"a":29},
+  {"team":"Northallerton Blacks","p":7,"w":1,"d":1,"l":5,"f":11,"a":34},
+  {"team":"Ferryhill","p":7,"w":0,"d":0,"l":7,"f":6,"a":31}
 ];
 const body=document.getElementById('rows');
 body.innerHTML=initial.map((r,i)=>`<tr><td>${i+1}</td><td><input class="team" data-k="team" value="${r.team}"></td>${['p','w','d','l','f','a'].map(k=>`<td><input type="number" min="0" inputmode="numeric" data-k="${k}" value="${r[k]}"></td>`).join('')}</tr>`).join('');
@@ -48,7 +48,7 @@ async function saveWholeTable(){
     if(!(await waitForApp(w)))throw new Error('app not ready');
     await w.eval(`(async()=>{await load();return true;})()`);
     const data=collect();
-    const ok=await w.eval(`(async()=>{standings=${JSON.stringify(data)};const saved=await save();render();return saved;})()`);
+    const ok=await w.eval(`(async()=>{standings=${JSON.stringify(data)};const saved=await save(['standings']);render();return saved;})()`);
     if(ok===false)throw new Error('save failed');
     status.className='status ok';status.textContent='League table saved successfully.';
   }catch(e){status.className='status err';status.textContent='Could not save the table. Reload and try again.';}
