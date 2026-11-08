@@ -2041,15 +2041,15 @@ function render() {
   const gamesEl = document.getElementById('gamesPane');
   const scorersEl = document.getElementById('scorersPane');
 
-  let w=0,d=0,l=0,gf=0,ga=0;
+  // The summary is league-only; results and individual awards include cup games.
+  const league = standings.find(t => /hartlepool stags/i.test(t.team || ''));
+  const leagueValue = key => league ? (Number(league[key]) || 0) : '—';
+  const p = leagueValue('p'), w = leagueValue('w'), d = leagueValue('d');
+  const l = leagueValue('l'), gf = leagueValue('f'), ga = leagueValue('a');
   const scorerTotals = {};
   const motmTotals = {};
 
   games.forEach(g => {
-    gf += g.stagsScore; ga += g.oppScore;
-    if (g.stagsScore > g.oppScore) w++;
-    else if (g.stagsScore < g.oppScore) l++;
-    else d++;
     (g.scorers || []).forEach(name => {
       const rawName = name.trim();
       const lowerName = rawName.toLowerCase();
@@ -2066,11 +2066,11 @@ function render() {
   });
 
   statsEl.innerHTML = `
-    <div class="stat"><div class="num">${games.length}</div><div class="lbl">Played</div></div>
+    <div class="stat"><div class="num">${p}</div><div class="lbl">League played</div></div>
     <div class="stat w"><div class="num">${w}</div><div class="lbl">Won</div></div>
     <div class="stat d"><div class="num">${d}</div><div class="lbl">Drawn</div></div>
     <div class="stat l"><div class="num">${l}</div><div class="lbl">Lost</div></div>
-    <div class="stat"><div class="num">${gf}-${ga}</div><div class="lbl">GF-GA</div></div>
+    <div class="stat"><div class="num">${gf}-${ga}</div><div class="lbl">League GF-GA</div></div>
   `;
 
   // results list
